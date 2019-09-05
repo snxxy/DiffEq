@@ -17,8 +17,8 @@ namespace Generator
             pythonEngine = Python.CreateEngine();
             pythonScope = pythonEngine.CreateScope();
             paths = pythonEngine.GetSearchPaths();
-            paths.Add(@"IronPython\Lib\site-packages");
-            paths.Add(@"IronPython\Lib");
+            paths.Add(@"..\..\..\IronPython\Lib\site-packages"); //for bin/debug/netcoreapp21/
+            paths.Add(@"..\..\..\IronPython\Lib");
             //paths.Add(@"C:\Python27\Lib");
             //paths.Add(@"C:\Python27\Lib\site-packages");
             pythonEngine.SetSearchPaths(paths);
