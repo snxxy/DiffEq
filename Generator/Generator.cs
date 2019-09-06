@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using System.Text;
 
 namespace Generator
 {
@@ -18,11 +16,27 @@ namespace Generator
                 {
                     if (order.Key == 1)
                     {
-                        Dispatch(new SeparableVariables());
+                        try
+                        {
+                            Dispatch(new SeparableVariables());
+                        }
+                        catch (IronPython.Runtime.Exceptions.TypeErrorException e)
+                        {
+                            Console.WriteLine(e.Message);
+                            i--;
+                        }
                     }
                     else if (order.Key == 2)
                     {
-                        Dispatch(new Homogeneous());
+                        try
+                        {
+                            Dispatch(new Homogeneous());
+                        }
+                        catch (IronPython.Runtime.Exceptions.TypeErrorException e)
+                        {
+                            Console.WriteLine(e.Message);
+                            i--;
+                        }
                     }
                     else
                     {

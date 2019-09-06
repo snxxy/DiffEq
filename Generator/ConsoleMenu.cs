@@ -227,7 +227,7 @@ namespace Generator
                             Console.Clear();
                             foreach (var eq in userInput)
                             {
-                                Console.WriteLine("Generationg {0} equations of type {1}", eq.Value, eq.Key);
+                                Console.WriteLine("Generating {0} equations of type {1}", eq.Value, eq.Key);
                             }
                             Console.WriteLine("Please wait");
                             generator.ManageOrder(userInput, useDb);

@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Microsoft.Scripting.Hosting;
-using IronPython.Hosting;
-using System.Threading;
-
+﻿
 namespace Generator
 {
     internal sealed class EqScrambler
