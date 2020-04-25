@@ -1,3 +1,3 @@
 # DiffEq
-Для использования необходимо докачать sympy в корень проекта Generator.
-https://www.sympy.org/en/index.html
+.NET Core 3.1 
+Python 3.8 + Flask + SymPy 1.5.1
