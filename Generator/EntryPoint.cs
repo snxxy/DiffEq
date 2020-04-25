@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GeneratorService;
+using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 
@@ -10,6 +11,7 @@ namespace Generator
         {
             ConsoleMenu cm = new ConsoleMenu();
             cm.InitMenu();
+            Console.ReadKey();
         }
     }
 }

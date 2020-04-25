@@ -20,9 +20,9 @@ namespace Generator
             return Value.CompareTo(node.Value);
         }
 
-        public int CompareTo(T node)
+        public int CompareTo(T nodeValue)
         {
-            return Value.CompareTo(node);
+            return Value.CompareTo(nodeValue);
         }
     }
 }

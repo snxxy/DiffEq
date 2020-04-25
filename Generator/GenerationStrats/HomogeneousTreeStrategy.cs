@@ -6,6 +6,7 @@ namespace Generator
 {
     class HomogeneousTreeStrategy : IGenerationStrategy
     {
+        private RandomNumberGenerator rng = new RandomNumberGenerator();
         public string ExecuteTreeAlgorithm(string variable, int difficulty)
         {           
             if (difficulty%2 == 0)
@@ -31,11 +32,11 @@ namespace Generator
                 var varChance = random.Next(1, 3);
                 if (varChance == 1)
                 {
-                    tree.Add(RandomNumberGenerator.Instance.Generate(1, 5, 0).ToString() + "*" + "(" + variable + ")" + "**"  + random.Next(2, 5).ToString());
+                    tree.Add(rng.Generate(1, 5, 0).ToString() + "*" + "(" + variable + ")" + "**"  + random.Next(2, 5).ToString());
                 }
                 else
                 {
-                    tree.Add(RandomNumberGenerator.Instance.Generate(1, 5, 0).ToString());
+                    tree.Add(rng.Generate(1, 5, 0).ToString());
                 }
             }
             List<string> eq = tree.InOrder(tree.Head);

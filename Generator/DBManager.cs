@@ -70,7 +70,7 @@ namespace Generator
         {
             for (int i = 0; i < equations.Count; i++)
             {
-                Equation equation = new Equation() { Eq = equations[i].Eq, Latex = equations[i].LatexEq, Type = equations[i].Type, Solution = equations[i].Solution, SolutionLatex = equations[i].SolutionLatex};
+                Equation equation = new Equation() { Eq = equations[i].Equation, Latex = equations[i].EquationLatex, Type = equations[i].Type, Solution = equations[i].Solution, SolutionLatex = equations[i].SolutionLatex};
                 AddToDB(equation);
             }
         }

@@ -15,7 +15,7 @@ namespace Generator
         {
             if (capacity <= 0)
             {
-                throw new ArgumentOutOfRangeException("Capacity = 0");
+                throw new ArgumentOutOfRangeException("Capacity <= 0");
             }
 
             IsFixedSize = true;

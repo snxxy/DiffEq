@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Generator
 {
-    class Generator
+    public class Generator
     {
         private Random ran = new Random();
         private List<IEquation> Cache = new List<IEquation>();
@@ -16,27 +16,11 @@ namespace Generator
                 {
                     if (order.Key == 1)
                     {
-                        try
-                        {
                             Dispatch(new SeparableVariables());
-                        }
-                        catch (IronPython.Runtime.Exceptions.TypeErrorException e)
-                        {
-                            Console.WriteLine(e.Message);
-                            i--;
-                        }
                     }
                     else if (order.Key == 2)
                     {
-                        try
-                        {
                             Dispatch(new Homogeneous());
-                        }
-                        catch (IronPython.Runtime.Exceptions.TypeErrorException e)
-                        {
-                            Console.WriteLine(e.Message);
-                            i--;
-                        }
                     }
                     else
                     {
@@ -53,7 +37,7 @@ namespace Generator
                 {
                     Console.WriteLine("----------------");
                     Console.WriteLine(equation.Type);
-                    Console.WriteLine(equation.Eq);
+                    Console.WriteLine(equation.Equation);
                     Console.WriteLine("----------------");
                 }
             }
@@ -70,19 +54,19 @@ namespace Generator
         private IEquation Generate(SeparableVariables sv)
         {
             RandomFunctionGenerator generator = new RandomFunctionGenerator(new SeparableTreeStrategy());
-            EqScrambler es = new EqScrambler();
-            sv.Eq = "(" + generator.Generate("x", ran.Next(4,12)) + ")" + "*" + "(" + generator.Generate("y", ran.Next(4, 12)) +
+            EquationManager equationManager = new EquationManager();
+            sv.Equation = "(" + generator.Generate("x", ran.Next(4,12)) + ")" + "*" + "(" + generator.Generate("y", ran.Next(4, 12)) +
                 ")" + "=" + "dydx";
-            sv = (SeparableVariables)es.Scrambler(sv);
+            sv = (SeparableVariables)equationManager.SolveAndScramble(sv);
             return sv;
         }
 
         private IEquation Generate(Homogeneous hg)
         {
             RandomFunctionGenerator generator = new RandomFunctionGenerator(new HomogeneousTreeStrategy());
-            EqScrambler es = new EqScrambler();
-            hg.Eq = "(" + generator.Generate("y/x", (1 + 2 * ran.Next(3, 6))) + ")" + "/" + "(" + generator.Generate("y/x", (1 + 2 * ran.Next(3, 6))) + ")" + "=" + "dydx";
-            hg = (Homogeneous)es.Scrambler(hg);
+            EquationManager equationManager = new EquationManager();
+            hg.Equation = "(" + generator.Generate("y/x", (1 + 2 * ran.Next(3, 6))) + ")" + "/" + "(" + generator.Generate("y/x", (1 + 2 * ran.Next(3, 6))) + ")" + "=" + "dydx";
+            hg = (Homogeneous)equationManager.SolveAndScramble(hg);
             return hg;
         }
     }

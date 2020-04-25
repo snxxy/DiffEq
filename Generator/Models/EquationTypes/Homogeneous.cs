@@ -6,8 +6,8 @@ namespace Generator
 {
     class Homogeneous : IEquation
     {
-        public string Eq { get; set; }
-        public string LatexEq { get; set; }
+        public string Equation { get; set; }
+        public string EquationLatex { get; set; }
         public int Type { get; }
         public string Solution { get; set; }
         public string SolutionLatex { get; set; }

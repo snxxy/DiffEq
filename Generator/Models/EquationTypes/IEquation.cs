@@ -6,8 +6,8 @@ namespace Generator
 {
     public interface IEquation
     {
-        string Eq { get; set; }
-        string LatexEq { get; set; }
+        string Equation { get; set; }
+        string EquationLatex { get; set; }
         int Type { get; }
         string Solution { get; set; }
         string SolutionLatex { get; set; }
