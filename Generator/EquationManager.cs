@@ -1,5 +1,5 @@
-﻿using GeneratorService;
-using GeneratorService.Models;
+﻿using System;
+using Generator.Models;
 
 namespace Generator
 {
@@ -16,10 +16,10 @@ namespace Generator
             {
                 var jsonEquation = pyRestApiHelper.SolveEquation(equation.Equation.Split('=')[0], equation.Equation.Split('=')[1]);
                 equation = MapJsonToDto(jsonEquation, equation.Type);
-                System.Console.WriteLine(equation.Equation);
-                System.Console.WriteLine(equation.EquationLatex);
-                System.Console.WriteLine(equation.Solution);
-                System.Console.WriteLine(equation.SolutionLatex);
+                Console.WriteLine(equation.Equation);
+                Console.WriteLine(equation.EquationLatex);
+                Console.WriteLine(equation.Solution);
+                Console.WriteLine(equation.SolutionLatex);
                 return equation;
             }
             else if (equation.Type == 2)
@@ -27,8 +27,12 @@ namespace Generator
                 var jsonEquation = pyRestApiHelper.SolveEquation(equation.Equation.Split('=')[0], equation.Equation.Split('=')[1]);
                 //мб не возвращать новый equation?
                 equation = MapJsonToDto(jsonEquation, equation.Type);
-                equation = Scramble(equation);
-                
+                //fix scramble
+                //equation = Scramble(equation);
+                Console.WriteLine(equation.Equation);
+                Console.WriteLine(equation.EquationLatex);
+                Console.WriteLine(equation.Solution);
+                Console.WriteLine(equation.SolutionLatex);
                 return equation;
             }
             return null;

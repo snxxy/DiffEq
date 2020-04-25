@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using Generator.Models;
+using Generator.Strats;
 
 namespace Generator
 {
@@ -8,40 +10,38 @@ namespace Generator
         private Random ran = new Random();
         private List<IEquation> Cache = new List<IEquation>();
 
-        public int ManageOrder(Dictionary<int, int> pairs, bool useDb = true)
+        public void ManageOrder(Dictionary<int, int> pairs, bool useDb = true)
         {
-            foreach(var order in pairs)
+            foreach (var order in pairs)
             {
-                for (int i = 1; i <= order.Value; i++)
+                for (int i = 0; i < order.Value; i++)
                 {
                     if (order.Key == 1)
                     {
-                            Dispatch(new SeparableVariables());
+                        Dispatch(new SeparableVariables());
                     }
                     else if (order.Key == 2)
                     {
-                            Dispatch(new Homogeneous());
+                        Dispatch(new Homogeneous());
                     }
                     else
                     {
                         throw new NotImplementedException($"Equations of type {order.Key} are not supported");
                     }
                 }
-            }   
+            }
             if (useDb)
             {
                 DBManager.Instance.AddToDB(Cache);
             }
+            foreach (var equation in Cache)
             {
-                foreach (var equation in Cache)
-                {
-                    Console.WriteLine("----------------");
-                    Console.WriteLine(equation.Type);
-                    Console.WriteLine(equation.Equation);
-                    Console.WriteLine("----------------");
-                }
+                Console.WriteLine("----------------");
+                Console.WriteLine(equation.Type);
+                Console.WriteLine(equation.Equation);
+                Console.WriteLine(equation.Solution);
+                Console.WriteLine("----------------");
             }
-            return 0;
         }
 
         private void Dispatch(IEquation equation)
@@ -55,7 +55,7 @@ namespace Generator
         {
             RandomFunctionGenerator generator = new RandomFunctionGenerator(new SeparableTreeStrategy());
             EquationManager equationManager = new EquationManager();
-            sv.Equation = "(" + generator.Generate("x", ran.Next(4,12)) + ")" + "*" + "(" + generator.Generate("y", ran.Next(4, 12)) +
+            sv.Equation = "(" + generator.Generate("x", ran.Next(4, 12)) + ")" + "*" + "(" + generator.Generate("y", ran.Next(4, 12)) +
                 ")" + "=" + "dydx";
             sv = (SeparableVariables)equationManager.SolveAndScramble(sv);
             return sv;

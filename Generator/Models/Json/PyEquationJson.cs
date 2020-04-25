@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace GeneratorService.Models
+﻿namespace Generator.Models
 {
     class PyEquationJson
     {

@@ -1,4 +1,6 @@
-﻿namespace Generator
+﻿using Generator.Strats;
+
+namespace Generator
 {
     class RandomFunctionGenerator
     {

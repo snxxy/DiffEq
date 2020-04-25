@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
+using Generator.BinaryTree;
 
-namespace Generator
+namespace Generator.Strats
 {
     class SeparableTreeStrategy:IGenerationStrategy
     {

@@ -14,6 +14,12 @@ class Equation:
         self.Solution = solution
         self.SolutionLatex = solutionLatex
 
+class Expression:
+    def __init__(self, expression, maxVar):
+        self.Expression = expression
+        self.MaxVar = maxVar
+    
+
 def UseSympyToSolve(left, right):
     x = Symbol('x')
     y = Function('y')(x)
@@ -37,7 +43,9 @@ def UseSympyToScramble(equation, maxVar):
     parsedEquation = parse_expr(equation)
     expr = Eq(parsedEquation)
     expr = expr * (x ** maxVar)
-    return expr
+    exprStr = str(expr)
+    expression = Expression(exprStr, maxVar)
+    return expression
 
 
 api = Flask(__name__)
@@ -58,8 +66,10 @@ def GetSolved():
 def GetScrambled():
     data = request.get_json()
     left = data.get('Expression')
-
-    return jsonify(UseSympyToScramble(left))
+    maxVar = data.get('MaxVar')
+    result = UseSympyToScramble(left, maxVar)
+    exJSON = jsonpickle.encode(result, unpicklable=False)
+    return exJSON
 
 
 if __name__ == '__main__':

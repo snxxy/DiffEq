@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Generator
+namespace Generator.BinaryTree
 {
     public class InOrderTree<T> : ITreeTraverse<T> where T : IComparable<T>
     {

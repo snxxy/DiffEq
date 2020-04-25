@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Generator;
-using GeneratorService.Models;
+using System.Linq;
+using Generator.Models;
 using Newtonsoft.Json;
 using RestSharp;
 
-namespace GeneratorService
+namespace Generator
 {
     class PyRestApiHelper
     {
