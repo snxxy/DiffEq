@@ -7,6 +7,7 @@ namespace Generator
     {
         private int maxVar = 0;
 
+        //много ненужных созданий объектов
         public IEquation SolveAndScramble(IEquation equation)
         {
             maxVar = 0;
@@ -16,10 +17,7 @@ namespace Generator
             {
                 var jsonEquation = pyRestApiHelper.SolveEquation(equation.Equation.Split('=')[0], equation.Equation.Split('=')[1]);
                 equation = MapJsonToDto(jsonEquation, equation.Type);
-                Console.WriteLine(equation.Equation);
-                Console.WriteLine(equation.EquationLatex);
-                Console.WriteLine(equation.Solution);
-                Console.WriteLine(equation.SolutionLatex);
+
                 return equation;
             }
             else if (equation.Type == 2)
@@ -29,10 +27,7 @@ namespace Generator
                 equation = MapJsonToDto(jsonEquation, equation.Type);
                 //fix scramble
                 //equation = Scramble(equation);
-                Console.WriteLine(equation.Equation);
-                Console.WriteLine(equation.EquationLatex);
-                Console.WriteLine(equation.Solution);
-                Console.WriteLine(equation.SolutionLatex);
+
                 return equation;
             }
             return null;

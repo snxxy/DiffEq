@@ -5,4 +5,10 @@
 <div class="text-center">
     <h1 class="display-4">Welcome</h1>
     <p>Learn about <a href="https://docs.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+    <div id="example-1">
+        <button v-on:click="counter += 1">+1</button>
+        <p>Кнопка выше была нажата {{ counter }} раз</p>
+    </div>
 </div>
+
+<script src="~/bundle/script.js"></script>

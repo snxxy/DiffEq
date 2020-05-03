@@ -28,6 +28,7 @@ namespace Generator
                     {
                         throw new NotImplementedException($"Equations of type {order.Key} are not supported");
                     }
+                    Console.WriteLine(i);
                 }
             }
             if (useDb)
@@ -55,8 +56,7 @@ namespace Generator
         {
             RandomFunctionGenerator generator = new RandomFunctionGenerator(new SeparableTreeStrategy());
             EquationManager equationManager = new EquationManager();
-            sv.Equation = "(" + generator.Generate("x", ran.Next(4, 12)) + ")" + "*" + "(" + generator.Generate("y", ran.Next(4, 12)) +
-                ")" + "=" + "dydx";
+            sv.Equation = "(" + generator.Generate("x", ran.Next(4, 12)) + ")" + "*" + "(" + generator.Generate("y", ran.Next(4, 12)) + ")" + "=" + "dydx";
             sv = (SeparableVariables)equationManager.SolveAndScramble(sv);
             return sv;
         }

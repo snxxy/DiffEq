@@ -8,12 +8,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Generator", "Generator\Gene
 		{ACFB51ED-2D11-4AB4-B2BA-15619C4BDB5D} = {ACFB51ED-2D11-4AB4-B2BA-15619C4BDB5D}
 	EndProjectSection
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DiffEqWeb", "DiffEqWeb\DiffEqWeb.csproj", "{C77A9A22-4FBA-46C1-96B3-FA89EADD3E47}"
-	ProjectSection(ProjectDependencies) = postProject
-		{9FF2039C-BD3F-4054-B8C0-B1F31062FA52} = {9FF2039C-BD3F-4054-B8C0-B1F31062FA52}
-	EndProjectSection
-EndProject
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "PySolverApi", "PySolverApi\PySolverApi.pyproj", "{ACFB51ED-2D11-4AB4-B2BA-15619C4BDB5D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiffEqWeb", "DiffEqWeb\DiffEqWeb.csproj", "{A55DFA54-6F4C-4234-9AA1-1434DF787262}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -31,14 +28,6 @@ Global
 		{9FF2039C-BD3F-4054-B8C0-B1F31062FA52}.Release|Any CPU.Build.0 = Release|Any CPU
 		{9FF2039C-BD3F-4054-B8C0-B1F31062FA52}.Release|x86.ActiveCfg = Release|Any CPU
 		{9FF2039C-BD3F-4054-B8C0-B1F31062FA52}.Release|x86.Build.0 = Release|Any CPU
-		{C77A9A22-4FBA-46C1-96B3-FA89EADD3E47}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{C77A9A22-4FBA-46C1-96B3-FA89EADD3E47}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{C77A9A22-4FBA-46C1-96B3-FA89EADD3E47}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{C77A9A22-4FBA-46C1-96B3-FA89EADD3E47}.Debug|x86.Build.0 = Debug|Any CPU
-		{C77A9A22-4FBA-46C1-96B3-FA89EADD3E47}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{C77A9A22-4FBA-46C1-96B3-FA89EADD3E47}.Release|Any CPU.Build.0 = Release|Any CPU
-		{C77A9A22-4FBA-46C1-96B3-FA89EADD3E47}.Release|x86.ActiveCfg = Release|Any CPU
-		{C77A9A22-4FBA-46C1-96B3-FA89EADD3E47}.Release|x86.Build.0 = Release|Any CPU
 		{ACFB51ED-2D11-4AB4-B2BA-15619C4BDB5D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{ACFB51ED-2D11-4AB4-B2BA-15619C4BDB5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ACFB51ED-2D11-4AB4-B2BA-15619C4BDB5D}.Debug|x86.ActiveCfg = Debug|Any CPU
@@ -47,6 +36,14 @@ Global
 		{ACFB51ED-2D11-4AB4-B2BA-15619C4BDB5D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{ACFB51ED-2D11-4AB4-B2BA-15619C4BDB5D}.Release|x86.ActiveCfg = Release|Any CPU
 		{ACFB51ED-2D11-4AB4-B2BA-15619C4BDB5D}.Release|x86.Build.0 = Release|Any CPU
+		{A55DFA54-6F4C-4234-9AA1-1434DF787262}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A55DFA54-6F4C-4234-9AA1-1434DF787262}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A55DFA54-6F4C-4234-9AA1-1434DF787262}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A55DFA54-6F4C-4234-9AA1-1434DF787262}.Debug|x86.Build.0 = Debug|Any CPU
+		{A55DFA54-6F4C-4234-9AA1-1434DF787262}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A55DFA54-6F4C-4234-9AA1-1434DF787262}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A55DFA54-6F4C-4234-9AA1-1434DF787262}.Release|x86.ActiveCfg = Release|Any CPU
+		{A55DFA54-6F4C-4234-9AA1-1434DF787262}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
