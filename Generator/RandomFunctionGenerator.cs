@@ -1,6 +1,6 @@
-﻿using Generator.Strats;
+﻿using DiffEq.Strats;
 
-namespace Generator
+namespace DiffEq
 {
     class RandomFunctionGenerator
     {

@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
-namespace Generator
+namespace EquationDB
 {
     public partial class Context : DbContext
     {
@@ -19,7 +19,7 @@ namespace Generator
         {
             if (!optionsBuilder.IsConfigured)
             {
-                optionsBuilder.UseSqlServer(@"Data Source=DEEPBLUE\SQLEXPRESS;Initial Catalog=diffDB;Integrated Security=True;Pooling=False");
+                optionsBuilder.UseSqlServer(@"Data Source = (LocalDB)\MSSQLLocalDB; AttachDbFilename = C:\GeneratorProj\DiffEq\EquationDB\Eqs.mdf; Integrated Security = True");
             }
         }
 

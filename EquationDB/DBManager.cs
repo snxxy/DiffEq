@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Generator.Models;
 
-namespace Generator
+namespace EquationDB
 {
     public sealed class DBManager
     {
@@ -65,14 +64,14 @@ namespace Generator
                     context.SaveChanges();
                 }
             }
+            Console.WriteLine(Count());
         }
 
-        public void AddToDB(List<IEquation> equations)
+        public void AddToDB(IEnumerable<Equation> equations)
         {
-            for (int i = 0; i < equations.Count; i++)
+            foreach (var item in equations)
             {
-                Equation equation = new Equation() { Eq = equations[i].Equation, Latex = equations[i].EquationLatex, Type = equations[i].Type, Solution = equations[i].Solution, SolutionLatex = equations[i].SolutionLatex};
-                AddToDB(equation);
+                AddToDB(item);
             }
         }
 
@@ -103,7 +102,6 @@ namespace Generator
 
         public List<Equation> GetEquationList(int count, int type)
         {
-            List<Equation> forSort = new List<Equation>();
             List<Equation> result = new List<Equation>();
             Equation eq = new Equation();
             Random rand = new Random();

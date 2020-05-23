@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Generator.BinaryTree
+namespace DiffEq.BinaryTree
 {
     public interface ITreeTraverse<T> where T : IComparable<T>
     {

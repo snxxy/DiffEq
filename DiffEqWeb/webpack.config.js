@@ -1,4 +1,5 @@
-﻿"use strict";
+﻿/// <binding BeforeBuild='Run - Development' />
+"use strict";
 const { VueLoaderPlugin } = require('vue-loader');
 const path = require('path');
 const webpack = require('webpack');

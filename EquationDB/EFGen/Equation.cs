@@ -1,4 +1,4 @@
-﻿namespace Generator
+﻿namespace EquationDB
 {
     public partial class Equation
     {

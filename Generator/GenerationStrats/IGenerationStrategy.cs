@@ -1,4 +1,4 @@
-﻿namespace Generator.Strats
+﻿namespace DiffEq.Strats
 {
     public interface IGenerationStrategy
     {

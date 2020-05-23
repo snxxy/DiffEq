@@ -1,4 +1,4 @@
-﻿namespace Generator.Models
+﻿namespace DiffEq.Models
 {
     class SeparableVariables : IEquation
     {

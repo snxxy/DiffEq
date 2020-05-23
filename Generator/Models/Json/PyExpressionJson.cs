@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Generator.Models
+namespace DiffEq.Models
 {
     class PyExpressionJson
     {

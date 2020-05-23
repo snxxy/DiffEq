@@ -1,7 +1,7 @@
 ﻿using System;
-using Generator.Models;
+using DiffEq.Models;
 
-namespace Generator
+namespace DiffEq
 {
     internal sealed class EquationManager
     {

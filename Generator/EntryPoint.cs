@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Generator
+namespace DiffEq
 {
     sealed class EntryPoint
     {

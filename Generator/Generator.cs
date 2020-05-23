@@ -1,16 +1,27 @@
 ﻿using System;
 using System.Collections.Generic;
-using Generator.Models;
-using Generator.Strats;
+using System.Data.Common;
+using EquationDB;
+using DiffEq.Models;
+using DiffEq.Strats;
+using Microsoft.Scripting.Interpreter;
+using System.Linq;
 
-namespace Generator
+namespace DiffEq
 {
     public class Generator
     {
         private Random ran = new Random();
         private List<IEquation> Cache = new List<IEquation>();
 
-        public void ManageOrder(Dictionary<int, int> pairs, bool useDb = true)
+        public IEnumerable<IEquation> GetEquations(Dictionary<int, int> pairs)
+        {
+            var type1res = DBManager.Instance.GetEquationList(2, 1);
+            var type2res = DBManager.Instance.GetEquationList(2, 2);
+            var result = MapDalToDto((type1res).Union(type2res));
+            return result;
+        }
+        public void GenerateOrder(Dictionary<int, int> pairs, bool useDb = true)
         {
             foreach (var order in pairs)
             {
@@ -28,23 +39,45 @@ namespace Generator
                     {
                         throw new NotImplementedException($"Equations of type {order.Key} are not supported");
                     }
-                    Console.WriteLine(i);
                 }
             }
             if (useDb)
             {
-                DBManager.Instance.AddToDB(Cache);
-            }
-            foreach (var equation in Cache)
-            {
-                Console.WriteLine("----------------");
-                Console.WriteLine(equation.Type);
-                Console.WriteLine(equation.Equation);
-                Console.WriteLine(equation.Solution);
-                Console.WriteLine("----------------");
+                var forDB = MapDtoToDal(Cache);
+                DBManager.Instance.AddToDB(forDB);
+                Cache.Clear();
             }
         }
 
+        private IEnumerable<Equation> MapDtoToDal(IEnumerable<IEquation> eqs)
+        {
+            var result = new List<Equation>();
+            foreach (var item in eqs)
+            {
+                var eqDal = new Equation();
+                eqDal.Eq = item.Equation;
+                eqDal.Latex = item.EquationLatex;
+                eqDal.Solution = item.Solution;
+                eqDal.SolutionLatex = item.SolutionLatex;
+                eqDal.Type = item.Type;
+                result.Add(eqDal);
+            }
+            return result;
+        }
+        private int GetEquationCountByType(int type)
+        {
+            var result = DBManager.Instance.CountByType(type);
+            return result;
+        }
+
+        public IEnumerable<int> GetEquationCounts()
+        {
+            //TODO: get types from global config/remove hardcode
+            var result = new List<int>();
+            result.Add(GetEquationCountByType(1));
+            result.Add(GetEquationCountByType(2));
+            return result;
+        }
         private void Dispatch(IEquation equation)
         {
             dynamic _equation = equation;
@@ -68,6 +101,38 @@ namespace Generator
             hg.Equation = "(" + generator.Generate("y/x", (1 + 2 * ran.Next(3, 6))) + ")" + "/" + "(" + generator.Generate("y/x", (1 + 2 * ran.Next(3, 6))) + ")" + "=" + "dydx";
             hg = (Homogeneous)equationManager.SolveAndScramble(hg);
             return hg;
+        }
+
+        //needs less hardcode
+        private IEnumerable<IEquation> MapDalToDto(IEnumerable<Equation> equationDal)
+        {
+            var result = new List<IEquation>();
+            foreach (var item in equationDal)
+            {
+                if (item.Type == 1)
+                {
+                    var eqDto = new SeparableVariables();
+                    eqDto.Equation = item.Eq;
+                    eqDto.EquationLatex = item.Latex;
+                    eqDto.Solution = item.Solution;
+                    eqDto.SolutionLatex = item.SolutionLatex;
+                    result.Add(eqDto);
+                }
+                else if (item.Type == 2)
+                {
+                    var eqDto = new Homogeneous();
+                    eqDto.Equation = item.Eq;
+                    eqDto.EquationLatex = item.Latex;
+                    eqDto.Solution = item.Solution;
+                    eqDto.SolutionLatex = item.SolutionLatex;
+                    result.Add(eqDto);
+                }
+                else
+                {
+                    throw new NotImplementedException("No mapper for this equation type");
+                }
+            }
+            return result;
         }
     }
 }

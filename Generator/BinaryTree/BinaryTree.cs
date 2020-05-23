@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 
-namespace Generator.BinaryTree
+namespace DiffEq.BinaryTree
 {
     public class BinaryTree<T> : ICollection<T> where T : IComparable<T>
     {

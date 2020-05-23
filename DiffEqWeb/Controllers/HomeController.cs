@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using DiffEqWeb.Models;
+using Microsoft.EntityFrameworkCore.Design;
+using DiffEq;
 
 namespace DiffEqWeb.Controllers
 {
@@ -19,11 +21,6 @@ namespace DiffEqWeb.Controllers
         }
 
         public IActionResult Index()
-        {
-            return View();
-        }
-
-        public IActionResult Privacy()
         {
             return View();
         }

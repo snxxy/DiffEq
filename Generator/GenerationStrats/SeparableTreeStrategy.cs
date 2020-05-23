@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using Generator.BinaryTree;
+using DiffEq.BinaryTree;
 
-namespace Generator.Strats
+namespace DiffEq.Strats
 {
     class SeparableTreeStrategy:IGenerationStrategy
     {

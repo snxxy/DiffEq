@@ -2,7 +2,7 @@
 using System.Threading;
 using System.Collections.Generic;
 
-namespace Generator
+namespace DiffEq
 {
     sealed class ConsoleMenu
     {
@@ -230,7 +230,7 @@ namespace Generator
                                 Console.WriteLine("Generating {0} equations of type {1}", eq.Value, eq.Key);
                             }
                             Console.WriteLine("Please wait");
-                            generator.ManageOrder(userInput, useDb);
+                            generator.GenerateOrder(userInput, useDb);
                             Console.WriteLine("Press any key to continue");
                             userInput.Clear();
                             Console.ReadKey();

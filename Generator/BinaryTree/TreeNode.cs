@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Generator.BinaryTree
+namespace DiffEq.BinaryTree
 {
     public class TreeNode<T> : IComparable<T> where T : IComparable<T>
     {

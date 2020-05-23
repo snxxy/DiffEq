@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Linq;
-using Generator.Models;
+using DiffEq.Models;
 using Newtonsoft.Json;
 using RestSharp;
 
-namespace Generator
+namespace DiffEq
 {
     class PyRestApiHelper
     {
