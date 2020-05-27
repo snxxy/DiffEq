@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using DiffEq;
+using DiffEq.Models;
 using DiffEqWeb.Models;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,6 +16,7 @@ namespace DiffEqWeb.Controllers
     public class HomeApiController : ControllerBase
     {
         // GET: api/<controller>
+        [Route("[action]/")]
         [HttpGet]
         public async Task<IEnumerable<int>> GetEquationCount()
         {
@@ -28,6 +30,15 @@ namespace DiffEqWeb.Controllers
         {
             var generator = new Generator();
             generator.GenerateOrder(new Dictionary<int, int>() { { 1, Convert.ToInt32(order.Sveq) }, { 2, Convert.ToInt32(order.Hgeq)}});
+        }
+
+        [Route("[action]/")]
+        [HttpGet]
+        public async Task<IEnumerable<IEquation>> GetEquationsToSolve()
+        {
+            var generator = new Generator();
+            var result = generator.GetEquations(new Dictionary<int, int>() { { 1, 2 }, { 2, 2 } });
+            return result;
         }
     }
 }

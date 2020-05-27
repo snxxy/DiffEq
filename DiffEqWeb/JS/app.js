@@ -7,28 +7,20 @@ var app = new Vue({
         equationCount: [],
         genFormSpawn: false,
         testSpawn: false,
-        sveq: 0,
-        hgeq: 0
+        sveq: 1,
+        hgeq: 1,
+        equations: []
     },
     methods: {
-        isNumber: function (evt) {
-            evt = (evt) ? evt : window.event;
-            var charCode = (evt.which) ? evt.which : evt.keyCode;
-            if ((charCode > 31 && (charCode < 48 || charCode > 57)) && charCode === 46) {
-                evt.preventDefault();;
-            } else {
-                return true;
-            }
-        },
         getEquationCount: function () {
-            axios.get('https://localhost:5001/api/homeapi').then(response => {
+            axios.get('https://localhost:5002/api/homeapi/getequationcount').then(response => {
                 this.equationCount = response.data
             })
         },
         sendGenOrder: function () {
             axios({
                 method: 'POST',
-                url: 'https://localhost:5001/api/homeapi',
+                url: 'https://localhost:5002/api/homeapi',
                 data: {
                     "sveq": this.sveq,
                     "hgeq": this.hgeq
@@ -38,6 +30,14 @@ var app = new Vue({
                     console.log(response);
                 })
                 .catch(function (error) {
+                    console.log(error);
+                });
+        },
+        sendGetEqOrder: function () {
+            axios.get('https://localhost:5002/api/homeapi/getequationstosolve')
+                .then(response => {
+                    this.equations = response.data
+                }).catch(function (error) {
                     console.log(error);
                 });
         }

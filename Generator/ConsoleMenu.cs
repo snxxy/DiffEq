@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Collections.Generic;
+using EquationDB;
 
 namespace DiffEq
 {

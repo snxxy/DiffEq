@@ -16,8 +16,9 @@ namespace DiffEq
 
         public IEnumerable<IEquation> GetEquations(Dictionary<int, int> pairs)
         {
-            var type1res = DBManager.Instance.GetEquationList(2, 1);
-            var type2res = DBManager.Instance.GetEquationList(2, 2);
+            DBManager manager = new DBManager();
+            var type1res = manager.GetEquationList(2, 1);
+            var type2res = manager.GetEquationList(2, 2);
             var result = MapDalToDto((type1res).Union(type2res));
             return result;
         }
@@ -25,7 +26,7 @@ namespace DiffEq
         {
             foreach (var order in pairs)
             {
-                for (int i = 0; i < order.Value; i++)
+                for (int i = 0; i <= order.Value; i++)
                 {
                     if (order.Key == 1)
                     {
@@ -44,7 +45,8 @@ namespace DiffEq
             if (useDb)
             {
                 var forDB = MapDtoToDal(Cache);
-                DBManager.Instance.AddToDB(forDB);
+                var manager = new DBManager();
+                manager.AddToDB(forDB);
                 Cache.Clear();
             }
         }
@@ -66,7 +68,8 @@ namespace DiffEq
         }
         private int GetEquationCountByType(int type)
         {
-            var result = DBManager.Instance.CountByType(type);
+            var manager = new DBManager();
+            var result = manager.CountByType(type);
             return result;
         }
 
@@ -89,7 +92,7 @@ namespace DiffEq
         {
             RandomFunctionGenerator generator = new RandomFunctionGenerator(new SeparableTreeStrategy());
             EquationManager equationManager = new EquationManager();
-            sv.Equation = "(" + generator.Generate("x", ran.Next(4, 12)) + ")" + "*" + "(" + generator.Generate("y", ran.Next(4, 12)) + ")" + "=" + "dydx";
+            sv.Equation = "(" + generator.Generate("x", ran.Next(4, 10)) + ")" + "*" + "(" + generator.Generate("y", ran.Next(4, 10)) + ")" + "=" + "dydx";
             sv = (SeparableVariables)equationManager.SolveAndScramble(sv);
             return sv;
         }
@@ -98,7 +101,7 @@ namespace DiffEq
         {
             RandomFunctionGenerator generator = new RandomFunctionGenerator(new HomogeneousTreeStrategy());
             EquationManager equationManager = new EquationManager();
-            hg.Equation = "(" + generator.Generate("y/x", (1 + 2 * ran.Next(3, 6))) + ")" + "/" + "(" + generator.Generate("y/x", (1 + 2 * ran.Next(3, 6))) + ")" + "=" + "dydx";
+            hg.Equation = "(" + generator.Generate("y/x", (1 + 2 * ran.Next(1, 2))) + ")" + "/" + "(" + generator.Generate("y/x", (1 + 2 * ran.Next(1, 2))) + ")" + "=" + "dydx";
             hg = (Homogeneous)equationManager.SolveAndScramble(hg);
             return hg;
         }

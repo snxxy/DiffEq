@@ -5,23 +5,25 @@
 <div class="text-center">
     <div id="app">
         <button v-on:click="genFormSpawn = !genFormSpawn; testSpawn = false">Generate</button>
-        <button v-on:click="testSpawn = !testSpawn; genFormSpawn = false">Random Test</button>
-        <button v-on:click="getEquationCount()">Roll</button>
+        <button v-on:click="testSpawn = !testSpawn; genFormSpawn = false; sendGetEqOrder()">Random Test</button>
+        <button v-on:click="getEquationCount()">Refresh Count</button>
         <ul id="EqsCount" style="list-style: none;">
             <li v-for="(item, index) in equationCount">
                 Type {{index + 1}} equations in DB: {{ item }}
             </li>
         </ul>
         <div>
-            @await Html.PartialAsync("GenerationFormPartial")
-            @await Html.PartialAsync("TestPartial")
+            @{
+                await Html.RenderPartialAsync("GenerationFormPartial");
+                await Html.RenderPartialAsync("TestPartial");
+            }
         </div>
     </div>
 </div>
 
 
 <script src="~/bundle/script.js"></script>
-<script type="text/x-mathjax-config">
-    MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}});
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script type="text/javascript" id="MathJax-script" async
+        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js">
 </script>
-<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
