@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Generator\DiffEq.csproj" />
+    <ProjectReference Include="..\DiffEq\DiffEq.csproj" />
   </ItemGroup>
 
 </Project>
