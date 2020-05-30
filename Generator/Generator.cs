@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.Common;
 using EquationDB;
 using DiffEq.Models;
 using DiffEq.Strats;
-using Microsoft.Scripting.Interpreter;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace DiffEq
 {
@@ -14,15 +13,15 @@ namespace DiffEq
         private Random ran = new Random();
         private List<IEquation> Cache = new List<IEquation>();
 
-        public IEnumerable<IEquation> GetEquations(Dictionary<int, int> pairs)
+        public async Task<IEnumerable<IEquation>> GetEquations(Dictionary<int, int> pairs)
         {
             DBManager manager = new DBManager();
-            var type1res = manager.GetEquationList(2, 1);
-            var type2res = manager.GetEquationList(2, 2);
+            var type1res = await manager.GetEquationList(2, 1);
+            var type2res = await manager.GetEquationList(2, 2);
             var result = MapDalToDto((type1res).Union(type2res));
             return result;
         }
-        public void GenerateOrder(Dictionary<int, int> pairs, bool useDb = true)
+        public async Task GenerateOrder(Dictionary<int, int> pairs, bool useDb = true)
         {
             foreach (var order in pairs)
             {
@@ -46,11 +45,18 @@ namespace DiffEq
             {
                 var forDB = MapDtoToDal(Cache);
                 var manager = new DBManager();
-                manager.AddToDB(forDB);
+                await manager.AddToDB(forDB);
                 Cache.Clear();
             }
         }
-
+        public async Task<IEnumerable<int>> GetEquationCounts()
+        {
+            //TODO: get types from global config/remove hardcode
+            var result = new List<int>();
+            result.Add(await GetEquationCountByType(1));
+            result.Add(await GetEquationCountByType(2));
+            return result;
+        }
         private IEnumerable<Equation> MapDtoToDal(IEnumerable<IEquation> eqs)
         {
             var result = new List<Equation>();
@@ -66,19 +72,10 @@ namespace DiffEq
             }
             return result;
         }
-        private int GetEquationCountByType(int type)
+        private async Task<int> GetEquationCountByType(int type)
         {
             var manager = new DBManager();
-            var result = manager.CountByType(type);
-            return result;
-        }
-
-        public IEnumerable<int> GetEquationCounts()
-        {
-            //TODO: get types from global config/remove hardcode
-            var result = new List<int>();
-            result.Add(GetEquationCountByType(1));
-            result.Add(GetEquationCountByType(2));
+            var result = await manager.CountByType(type);
             return result;
         }
         private void Dispatch(IEquation equation)
@@ -87,25 +84,22 @@ namespace DiffEq
             dynamic genResult = Generate(_equation);
             Cache.Add(genResult);
         }
-
-        private IEquation Generate(SeparableVariables sv)
+        private async Task<IEquation> Generate(SeparableVariables sv)
         {
             RandomFunctionGenerator generator = new RandomFunctionGenerator(new SeparableTreeStrategy());
             EquationManager equationManager = new EquationManager();
             sv.Equation = "(" + generator.Generate("x", ran.Next(4, 10)) + ")" + "*" + "(" + generator.Generate("y", ran.Next(4, 10)) + ")" + "=" + "dydx";
-            sv = (SeparableVariables)equationManager.SolveAndScramble(sv);
+            sv =  (SeparableVariables)await equationManager.SolveAndScramble(sv);
             return sv;
         }
-
-        private IEquation Generate(Homogeneous hg)
+        private async Task<IEquation> Generate(Homogeneous hg)
         {
             RandomFunctionGenerator generator = new RandomFunctionGenerator(new HomogeneousTreeStrategy());
             EquationManager equationManager = new EquationManager();
             hg.Equation = "(" + generator.Generate("y/x", (1 + 2 * ran.Next(1, 2))) + ")" + "/" + "(" + generator.Generate("y/x", (1 + 2 * ran.Next(1, 2))) + ")" + "=" + "dydx";
-            hg = (Homogeneous)equationManager.SolveAndScramble(hg);
+            hg = (Homogeneous)await equationManager.SolveAndScramble(hg);
             return hg;
         }
-
         //needs less hardcode
         private IEnumerable<IEquation> MapDalToDto(IEnumerable<Equation> equationDal)
         {

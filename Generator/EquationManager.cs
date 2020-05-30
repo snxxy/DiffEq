@@ -1,28 +1,29 @@
 ﻿using System;
+using System.Threading.Tasks;
 using DiffEq.Models;
 
 namespace DiffEq
 {
-    internal sealed class EquationManager
+    sealed class EquationManager
     {
         private int maxVar = 0;
 
         //много ненужных созданий объектов
-        public IEquation SolveAndScramble(IEquation equation)
+        public async Task<IEquation> SolveAndScramble(IEquation equation)
         {
             maxVar = 0;
             PyRestApiHelper pyRestApiHelper = new PyRestApiHelper();
 
             if (equation.Type == 1)
             {
-                var jsonEquation = pyRestApiHelper.SolveEquation(equation.Equation.Split('=')[0], equation.Equation.Split('=')[1]);
+                var jsonEquation = await pyRestApiHelper.SolveEquation(equation.Equation.Split('=')[0], equation.Equation.Split('=')[1]);
                 equation = MapJsonToDto(jsonEquation, equation.Type);
 
                 return equation;
             }
             else if (equation.Type == 2)
             {
-                var jsonEquation = pyRestApiHelper.SolveEquation(equation.Equation.Split('=')[0], equation.Equation.Split('=')[1]);
+                var jsonEquation = await pyRestApiHelper.SolveEquation(equation.Equation.Split('=')[0], equation.Equation.Split('=')[1]);
                 //мб не возвращать новый equation?
                 equation = MapJsonToDto(jsonEquation, equation.Type);
                 //fix scramble
@@ -32,7 +33,7 @@ namespace DiffEq
             }
             return null;
         }
-        private IEquation Scramble(IEquation equation)
+        private async Task<IEquation> Scramble(IEquation equation)
         {
             PyRestApiHelper pyRestApiHelper = new PyRestApiHelper();
 
@@ -51,9 +52,9 @@ namespace DiffEq
             var a = equals[0].Split(")/(");
             a[0] = a[0] + ")";
             a[1] = "(" + a[1];
-            var jsonExpression = pyRestApiHelper.ScrambleExpression(a[0], maxVar);
+            var jsonExpression = await pyRestApiHelper.ScrambleExpression(a[0], maxVar);
             a[0] = jsonExpression.Expression;
-            jsonExpression = pyRestApiHelper.ScrambleExpression(a[1], maxVar);
+            jsonExpression = await pyRestApiHelper.ScrambleExpression(a[1], maxVar);
             a[1] = jsonExpression.Expression;
             equation.Equation = "dydx * (" + a[1].Split("==")[0] + ")" + ")" + "=" + a[0].Split("==")[0] + ")";
             return equation;

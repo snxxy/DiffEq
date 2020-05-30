@@ -2,6 +2,7 @@
 
 namespace DiffEq
 {
+    [Obsolete]
     sealed class EntryPoint
     {
         static void Main(string[] args)

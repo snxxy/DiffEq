@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System;
 
 namespace EquationDB
 {
@@ -21,8 +22,9 @@ namespace EquationDB
         {
             if (!optionsBuilder.IsConfigured)
             {
-                optionsBuilder.UseSqlServer(@"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=C:\GeneratorProj\DiffEq\EquationDB\Eqs.mdf;Integrated Security=True");
-                optionsBuilder.UseLoggerFactory(DBLoggerFactory);
+                var cs = AppDomain.CurrentDomain.BaseDirectory;
+                optionsBuilder.UseSqlServer(@$"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename={cs}Eqs.mdf;Integrated Security=True");
+                //optionsBuilder.UseLoggerFactory(DBLoggerFactory);
             }
         }
         public static readonly ILoggerFactory DBLoggerFactory = LoggerFactory.Create(builder =>

@@ -1,6 +1,6 @@
 ﻿namespace DiffEq.Strats
 {
-    public interface IGenerationStrategy
+    interface IGenerationStrategy
     {
         string ExecuteTreeAlgorithm(string variable, int difficulty);
     }

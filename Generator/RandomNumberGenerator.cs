@@ -2,7 +2,7 @@
 
 namespace DiffEq
 {
-    public sealed class RandomNumberGenerator
+    class RandomNumberGenerator
     {
 
         private static Random rnd = new Random();

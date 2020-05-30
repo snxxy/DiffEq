@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace DiffEq.BinaryTree
 {
-    public class InOrderTree<T> : ITreeTraverse<T> where T : IComparable<T>
+    class InOrderTree<T> : ITreeTraverse<T> where T : IComparable<T>
     {
         public IEnumerator<T> Traversal(TreeNode<T> node)
         {

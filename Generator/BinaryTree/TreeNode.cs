@@ -2,7 +2,7 @@
 
 namespace DiffEq.BinaryTree
 {
-    public class TreeNode<T> : IComparable<T> where T : IComparable<T>
+    class TreeNode<T> : IComparable<T> where T : IComparable<T>
     {
         public TreeNode(T value)
         {

@@ -22,5 +22,6 @@ namespace DiffEqWeb
                 {
                     webBuilder.UseStartup<Startup>();
                 });
+        
     }
 }

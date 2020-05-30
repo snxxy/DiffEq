@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace DiffEq.BinaryTree
 {
-    public class BinaryTree<T> : ICollection<T> where T : IComparable<T>
+    class BinaryTree<T> : ICollection<T> where T : IComparable<T>
     {
         public ITreeTraverse<T> TraversalStrategy { get; set; } = new InOrderTree<T>();
         public TreeNode<T> Head { get; set; }

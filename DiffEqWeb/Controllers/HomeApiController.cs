@@ -21,7 +21,7 @@ namespace DiffEqWeb.Controllers
         public async Task<IEnumerable<int>> GetEquationCount()
         {
             var generator = new Generator();
-            var result = generator.GetEquationCounts();
+            var result = await generator.GetEquationCounts();
             return result;
         }
 
@@ -29,7 +29,7 @@ namespace DiffEqWeb.Controllers
         public async Task GenerateEquationOrder([FromBody]GenerateOrderRequest order)
         {
             var generator = new Generator();
-            generator.GenerateOrder(new Dictionary<int, int>() { { 1, Convert.ToInt32(order.Sveq) }, { 2, Convert.ToInt32(order.Hgeq)}});
+            await generator.GenerateOrder(new Dictionary<int, int>() { { 1, Convert.ToInt32(order.Sveq) }, { 2, Convert.ToInt32(order.Hgeq)}});
         }
 
         [Route("[action]/")]
@@ -37,7 +37,7 @@ namespace DiffEqWeb.Controllers
         public async Task<IEnumerable<IEquation>> GetEquationsToSolve()
         {
             var generator = new Generator();
-            var result = generator.GetEquations(new Dictionary<int, int>() { { 1, 2 }, { 2, 2 } });
+            var result = await generator.GetEquations(new Dictionary<int, int>() { { 1, 2 }, { 2, 2 } });
             return result;
         }
     }

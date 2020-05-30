@@ -5,6 +5,7 @@ using EquationDB;
 
 namespace DiffEq
 {
+    [Obsolete]
     sealed class ConsoleMenu
     {
         private bool mainMenuFlag = true;

@@ -4,7 +4,7 @@ using System.IO;
 
 namespace EquationDB
 {
-    public class DBLoggerProvider : ILoggerProvider
+    sealed class DBLoggerProvider : ILoggerProvider
     {
         public ILogger CreateLogger(string categoryName)
         {

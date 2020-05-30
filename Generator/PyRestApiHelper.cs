@@ -1,14 +1,14 @@
 ﻿using System;
-using System.Linq;
+using System.Threading.Tasks;
 using DiffEq.Models;
 using Newtonsoft.Json;
 using RestSharp;
 
 namespace DiffEq
 {
-    class PyRestApiHelper
+    sealed class PyRestApiHelper
     {
-        public PyExpressionJson ScrambleExpression(string expression, int maxVar)
+        public async Task<PyExpressionJson> ScrambleExpression(string expression, int maxVar)
         {
             var client = new RestClient("http://127.0.0.1:5000/");
             var expr = new PyExpressionJson();
@@ -19,7 +19,7 @@ namespace DiffEq
             request.RequestFormat = DataFormat.Json;
             request.AddJsonBody(jsonExpr);
 
-            var response = client.Execute(request);
+            var response = await client.ExecuteAsync(request);
 
             if (response.ResponseStatus == ResponseStatus.Completed)
             {
@@ -29,7 +29,7 @@ namespace DiffEq
             return null;
         }
 
-        public PyEquationJson SolveEquation(string left, string right)
+        public async Task<PyEquationJson> SolveEquation(string left, string right)
         {
             var client = new RestClient("http://127.0.0.1:5000/");
             var equat = new PyEquationJson();
@@ -41,7 +41,7 @@ namespace DiffEq
             request.RequestFormat = DataFormat.Json;
             request.AddJsonBody(jsonEquat);
 
-            var response = client.Execute(request);
+            var response = await client.ExecuteAsync(request);
 
             if (response.ResponseStatus == ResponseStatus.Completed)
             {

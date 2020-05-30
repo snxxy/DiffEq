@@ -7,15 +7,21 @@ var app = new Vue({
         equationCount: [],
         genFormSpawn: false,
         testSpawn: false,
+        checked: false,
         sveq: 1,
         hgeq: 1,
-        equations: []
+        score: 0,
+        equations: [],
+        userSolutions: [],
+        solutionColor: ["Red", "Red", "Red", "Red"]
     },
     methods: {
         getEquationCount: function () {
-            axios.get('https://localhost:5002/api/homeapi/getequationcount').then(response => {
-                this.equationCount = response.data
-            })
+            axios.get('https://localhost:5002/api/homeapi/getequationcount')
+                .then(response => {
+                    this.equationCount = response.data
+                    this.refreshJax()
+                })
         },
         sendGenOrder: function () {
             axios({
@@ -27,19 +33,54 @@ var app = new Vue({
                 }
             })
                 .then(function (response) {
-                    console.log(response);
+                    console.log(response)
                 })
                 .catch(function (error) {
-                    console.log(error);
+                    console.log(error)
                 });
         },
         sendGetEqOrder: function () {
             axios.get('https://localhost:5002/api/homeapi/getequationstosolve')
                 .then(response => {
                     this.equations = response.data
+                    setTimeout(() => this.refreshJax(), 500)
                 }).catch(function (error) {
-                    console.log(error);
-                });
+                    console.log(error)
+                })
+        },
+        refreshJax: function () {
+            MathJax.typeset()
+        },
+        checkInput: function () {
+            this.score = 0
+            for (var i = 0; i < this.equations.length; i++) {
+                if (this.equations[i].solution == this.userSolutions[i]) {
+                    this.score++
+                    this.solutionColor[i] = "Green"
+                }
+                else {
+                    this.solutionColor[i] = "Red"
+                }
+            }
+        },
+        toggleTestBtn: function () {
+            if (this.testSpawn) {
+                this.testSpawn = false
+                this.genFormSpawn = false
+                this.refreshTestControls()
+            }
+            else {
+                this.testSpawn = true
+                this.genFormSpawn = false
+                this.sendGetEqOrder()
+            }
+        },
+        refreshTestControls: function () {
+            this.score = 0
+            this.checked = false
+            this.userSolutions = []
+            this.equations = []
+            this.solutionColor = ["Red", "Red", "Red", "Red"]
         }
     },
     beforeMount() {

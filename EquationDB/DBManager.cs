@@ -1,8 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace EquationDB
 {
@@ -27,112 +27,116 @@ namespace EquationDB
         //    }
         //}
 
-        public int Count()
+        public async Task<int> Count()
         {
-            using (Context context = new Context())
+            using (var context = new Context())
             {
-                return context.Equation.Count();
+                var result = await context.Equation.CountAsync();
+                return result;
             }
         }
 
-        public int CountByType(int type)
+        public async Task<int> CountByType(int type)
         {
-            using (Context context = new Context())
+            using (var context = new Context())
             {
-                return context.Equation.Where(a => a.Type == type).Count();
+                var result = await context.Equation.Where(a => a.Type == type).CountAsync();
+                return result;
             }
         }
 
-        public void AddToDB(Equation equation)
+        public async Task AddToDB(Equation equation)
         {
             Console.WriteLine($"Adding {equation.Eq} to DB");
-            bool flag = false;
-            var a = Count();
-            using (Context context = new Context())
+            var flag = false;
+            var a = await Count();
+            using (var context = new Context())
             {
                 for (int i = 1; i <= a; i++)
                 {
                     if (GetEquationById(i) == null)
                     {
                         equation.Id = i;
-                        context.Equation.Add(equation);
+                        await context.Equation.AddAsync(equation);
                         //context.Entry(equation).State = EntityState.Added;
-                        context.SaveChanges();
+                        await context.SaveChangesAsync();
                         flag = true;
                         break;
                     }
                 }
                 if (!flag)
                 {
-                    if (GetLatestId() == null)
+                    if (await GetLatestId() == null)
                     {
                         equation.Id = 1;
                     }
                     else
                     {
-                        equation.Id = GetLatestId() + 1;
-                        context.Equation.Add(equation);
+                        equation.Id = await GetLatestId() + 1;
+                        await context.Equation.AddAsync(equation);
                         //context.Entry(equation).State = EntityState.Added;
-                        context.SaveChanges();
+                        await context.SaveChangesAsync();
                     }
                 }
             }
-            Console.WriteLine(Count());
         }
 
-        public void AddToDB(IEnumerable<Equation> equations)
+        public async Task AddToDB(IEnumerable<Equation> equations)
         {
-            using (Context context = new Context())
+            using (var context = new Context())
             {
                 foreach (var item in equations)
                 {
-                    AddToDB(item);
+                    await AddToDB(item);
                 }
             }
         }
 
-        public int? GetLatestId()
+        public async Task<int?> GetLatestId()
         {
-            using (Context context = new Context())
+            using (var context = new Context())
             {
-                if (!context.Equation.Any())
+                if (!await context.Equation.AnyAsync())
                 {
                     return null;
                 }
-                return context.Equation.OrderByDescending(a => a.Id).FirstOrDefault().Id;
+                var result = await context.Equation.OrderByDescending(a => a.Id)
+                                                   .FirstOrDefaultAsync();
+                return result.Id;
             }
         }
 
         public void DeleteFromDB(int id)
         {
-            using (Context context = new Context())
+            using (var context = new Context())
             {
-                Equation equation = new Equation() { Id = id };
+                var equation = new Equation() { Id = id };
                 context.Equation.Attach(equation);
                 context.Equation.Remove(equation);
                 context.SaveChanges();
             }
         }
-        public Equation GetEquationById(int id)
+        public async Task<Equation> GetEquationById(int id)
         {
-            if (GetLatestId() == null)
+            if (await GetLatestId() == null)
             {
                 return null;
             }
-            using (Context context = new Context())
+            using (var context = new Context())
             {
-                return context.Equation.FirstOrDefault(a => a.Id == id);
+                var result = await context.Equation.FirstOrDefaultAsync(a => a.Id == id);
+                return result;
             }
         }
 
-        public List<Equation> GetEquationList(int count, int type)
+        public async Task<IEnumerable<Equation>> GetEquationList(int count, int type)
         {
-            List<Equation> result = new List<Equation>();
-            Equation eq = new Equation();
-            Random rand = new Random();
+            var result = new List<Equation>();
+            var eq = new Equation();
+            var rand = new Random();
 
-            int countType = CountByType(type);
-            using (Context context = new Context())
+            var countType = await CountByType(type);
+            using (var context = new Context())
             {
                 var eqs = context.Equation.Where(a => a.Type == type).Take(countType);
                 foreach (var equat in eqs)
@@ -140,7 +144,7 @@ namespace EquationDB
                     result.Add(equat);
                 }
 
-                int toDelete = countType - count;
+                var toDelete = countType - count;
                 for (int i = 0; i < toDelete; i++)
                 {
                     result.RemoveAt(rand.Next(0, result.Count() - 1));
