@@ -17,7 +17,7 @@ var app = new Vue({
     },
     methods: {
         getEquationCount: function () {
-            axios.get('https://localhost:5002/api/homeapi/getequationcount')
+            axios.get('https://localhost:44382/api/homeapi/getequationcount')
                 .then(response => {
                     this.equationCount = response.data
                     this.refreshJax()
@@ -26,7 +26,7 @@ var app = new Vue({
         sendGenOrder: function () {
             axios({
                 method: 'POST',
-                url: 'https://localhost:5002/api/homeapi',
+                url: 'https://localhost:44382/api/homeapi',
                 data: {
                     "sveq": this.sveq,
                     "hgeq": this.hgeq
@@ -40,7 +40,7 @@ var app = new Vue({
                 });
         },
         sendGetEqOrder: function () {
-            axios.get('https://localhost:5002/api/homeapi/getequationstosolve')
+            axios.get('https://localhost:44382/api/homeapi/getequationstosolve')
                 .then(response => {
                     this.equations = response.data
                     setTimeout(() => this.refreshJax(), 500)
