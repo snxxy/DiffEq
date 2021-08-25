@@ -17,7 +17,7 @@ namespace DiffEq.Web.Controllers
         public async Task<IEnumerable<int>> GetEquationCount()
         {
             var dbService = new EquationDBService();
-            var result = await dbService.GetEquationCount ();
+            var result = await dbService.GetEquationCounts();
             return result;
         }
 

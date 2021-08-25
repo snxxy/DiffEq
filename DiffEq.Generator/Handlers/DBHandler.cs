@@ -7,10 +7,8 @@ namespace DiffEq.Generator.Handlers
     {
         public async Task<IEnumerable<int>> GetEquationCounts()
         {
-            //TODO: get types from global config/remove hardcode
-            var result = new List<int>();
-            result.Add(await GetEquationCountByType(1));
-            result.Add(await GetEquationCountByType(2));
+            var db = new DiffEqDB();
+            var result = await db.GetEquationCounts();
             return result;
         }
 

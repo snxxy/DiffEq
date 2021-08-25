@@ -23,7 +23,7 @@ namespace DiffEq.DB
         //    }
         //}
 
-        public async Task<int> Count()
+        public async Task<int> GetCount()
         {
             using (var context = new Context())
             {
@@ -41,11 +41,21 @@ namespace DiffEq.DB
             }
         }
 
+        public async Task<IEnumerable<int>> GetEquationCounts()
+        {
+            var result = new List<int>();
+            using (var context = new Context())
+            {
+                result = await context.Equation.GroupBy(a => new { a.Type }).Select(b => new { type = b.Key.Type, count = b.Count() }).Select(c => c.count).ToListAsync();
+            }
+            return result;
+        }
+
         public async Task AddToDB(Equation equation)
         {
             Console.WriteLine($"Adding {equation.Eq} to DB");
             var flag = false;
-            var a = await Count();
+            var a = await GetCount();
             using (var context = new Context())
             {
                 for (int i = 1; i <= a; i++)
@@ -79,12 +89,9 @@ namespace DiffEq.DB
 
         public async Task AddToDB(IEnumerable<Equation> equations)
         {
-            using (var context = new Context())
+            foreach (var item in equations)
             {
-                foreach (var item in equations)
-                {
                     await AddToDB(item);
-                }
             }
         }
 
