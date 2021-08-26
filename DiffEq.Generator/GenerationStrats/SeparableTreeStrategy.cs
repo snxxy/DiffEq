@@ -5,7 +5,7 @@ namespace DiffEq.Generator.Strats
 {
     class SeparableTreeStrategy:IGenerationStrategy
     {
-        private RandomNumberGenerator rng = new RandomNumberGenerator();
+        RandomNumberGenerator rng = new RandomNumberGenerator();
         public string ExecuteTreeAlgorithm(string variable, int difficulty)
         {
             List<string> operators;

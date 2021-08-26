@@ -1,28 +1,18 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+﻿@* Views/Home/Index.cshtml *@
+
+@inject IWebHostEnvironment hostingEnv
+@{
+    ViewData["Title"] = "DiffEq";
 }
 
-<div class="text-center">
-    <div id="app">
-        <button v-on:click="genFormSpawn = !genFormSpawn; testSpawn = false">Generate</button>
-        <button v-on:click="toggleTestBtn()">Random Test</button>
-        <button v-on:click="getEquationCount()">Refresh Count</button>
-        <ul id="EqsCount" style="list-style: none;">
-            <li v-for="(item, index) in equationCount">
-                Type {{index + 1}} equations in DB: {{ item }}
-            </li>
-        </ul>
-        <div>
-            @{
-                await Html.RenderPartialAsync("GenerationFormPartial");
-                await Html.RenderPartialAsync("TestPartial");
-            }
-        </div>
-    </div>
-</div>
+<div id="counter">{{counter}}</div>
 
 
-<script src="~/bundle/script.js"></script>
-<script type="text/javascript" id="MathJax-script" async
-        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
-</script>
+<environment include="Development">
+    <script src="~/dist/mainBundle.js"></script>
+    <script src="~/dist/appbundle.js"></script>
+</environment>
+<environment exclude="Development">
+    <script src="~/dist/miscBundle.min.js"></script>
+    <script src="~/dist/appbundle.min.js"></script>
+</environment>
