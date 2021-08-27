@@ -1,7 +1,12 @@
 # DiffEq
-.NET Core 3.1 
-Python 3.8 + Flask + SymPy 1.5.1
+.NET 6 Preview
+Vue3
+Python 3.9 + Flask + SymPy 1.8
 ## ToDo:
 * Fix logger crash
 * Fix scrambler
-* Refactor
+* Use systemjs injections
+* Tune bundling
+* Web overhaul, proper css and templates
+* Update generation algos
+* Proper solution checks
