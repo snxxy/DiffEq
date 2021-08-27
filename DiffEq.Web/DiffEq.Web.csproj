@@ -33,4 +33,8 @@
     <None Include="wwwroot\dist\appbundle.js" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\DiffEq.Generator\DiffEq.Generator.csproj" />
+  </ItemGroup>
+
 </Project>

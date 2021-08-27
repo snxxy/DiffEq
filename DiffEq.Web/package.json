@@ -7,6 +7,9 @@
     "jquery": "3.6.0",
     "bootstrap": "5.1.0",
     "systemjs": "6.10.3",
-    "popper.js-lite": "2.0.0-rc.1"
+    "popperjs-core": "2.5.0",
+    "mathjax": "3.2.0",
+    "axios": "0.21.1",
+    "polyfill": "0.1.0"
   }
 }

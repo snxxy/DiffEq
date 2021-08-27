@@ -5,7 +5,24 @@
     ViewData["Title"] = "DiffEq";
 }
 
-<div id="counter">{{counter}}</div>
+<div class="text-center">
+    <div id="vueEntry">
+        <button v-on:click="genFormSpawn = !genFormSpawn; testSpawn = false">Generate</button>
+        <button v-on:click="toggleTestBtn()">Random Test</button>
+        <button v-on:click="getEquationCount()">Refresh Count</button>
+        <ul id="EqsCount" style="list-style: none;">
+            <li v-for="(item, index) in equationCount">
+                Type {{index + 1}} equations in DB: {{ item }}
+            </li>
+        </ul>
+        <div>
+            @{
+                await Html.RenderPartialAsync("GenerationFormPartial");
+                await Html.RenderPartialAsync("TestPartial");
+            }
+        </div>
+    </div>
+</div>
 
 
 <environment include="Development">

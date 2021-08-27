@@ -5,11 +5,13 @@
       "node_modules/jquery/dist/jquery.js",
       "node_modules/popper.js-lite/dist/umd/popper.js",
       "node_modules/bootstrap/dist/js/bootstrap.js",
-      "node_modules/systemjs/dist/system.src.js"
+      "node_modules/systemjs/dist/system.src.js",
+      "node_modules/axios/dist/axios.js",
+      "node_modules/mathjax/tex-mml-chtml.js"
     ],
     "minify": {
       "enabled": true,
-      "renameLocals": true
+      "renameLocals": false
     },
     "sourceMap": true
   },

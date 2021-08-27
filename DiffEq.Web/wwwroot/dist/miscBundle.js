@@ -10880,1843 +10880,6 @@ if ( typeof noGlobal === "undefined" ) {
 return jQuery;
 } );
 
-/**!
- * @fileOverview Kickass library to create and place poppers near their reference elements.
- * @version 2.0.0-lite
- * @license
- * Copyright (c) 2016 Federico Zivolo and contributors
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-(function (global, factory) {
-	typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
-	typeof define === 'function' && define.amd ? define(factory) :
-	(global.Popper = factory());
-}(this, (function () { 'use strict';
-
-var isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
-var longerTimeoutBrowsers = ['Edge', 'Trident', 'Firefox'];
-var timeoutDuration = 0;
-for (var i = 0; i < longerTimeoutBrowsers.length; i += 1) {
-  if (isBrowser && navigator.userAgent.indexOf(longerTimeoutBrowsers[i]) >= 0) {
-    timeoutDuration = 1;
-    break;
-  }
-}
-
-function microtaskDebounce(fn) {
-  var called = false;
-  return function () {
-    if (called) {
-      return;
-    }
-    called = true;
-    window.Promise.resolve().then(function () {
-      called = false;
-      fn();
-    });
-  };
-}
-
-function taskDebounce(fn) {
-  var scheduled = false;
-  return function () {
-    if (!scheduled) {
-      scheduled = true;
-      setTimeout(function () {
-        scheduled = false;
-        fn();
-      }, timeoutDuration);
-    }
-  };
-}
-
-var supportsMicroTasks = isBrowser && window.Promise;
-
-/**
-* Create a debounced version of a method, that's asynchronously deferred
-* but called in the minimum time possible.
-*
-* @method
-* @memberof Popper.Utils
-* @argument {Function} fn
-* @returns {Function}
-*/
-var debounce = supportsMicroTasks ? microtaskDebounce : taskDebounce;
-
-/**
- * Check if the given variable is a function
- * @method
- * @memberof Popper.Utils
- * @argument {Any} functionToCheck - variable to check
- * @returns {Boolean} answer to: is a function?
- */
-function isFunction(functionToCheck) {
-  var getType = {};
-  return functionToCheck && getType.toString.call(functionToCheck) === '[object Function]';
-}
-
-/**
- * Get CSS computed property of the given element
- * @method
- * @memberof Popper.Utils
- * @argument {Eement} element
- * @argument {String} property
- */
-function getStyleComputedProperty(element, property) {
-  if (element.nodeType !== 1) {
-    return [];
-  }
-  // NOTE: 1 DOM access here
-  var css = getComputedStyle(element, null);
-  return property ? css[property] : css;
-}
-
-/**
- * Returns the parentNode or the host of the element
- * @method
- * @memberof Popper.Utils
- * @argument {Element} element
- * @returns {Element} parent
- */
-function getParentNode(element) {
-  if (element.nodeName === 'HTML') {
-    return element;
-  }
-  return element.parentNode || element.host;
-}
-
-/**
- * Returns the scrolling parent of the given element
- * @method
- * @memberof Popper.Utils
- * @argument {Element} element
- * @returns {Element} scroll parent
- */
-function getScrollParent(element) {
-  // Return body, `getScroll` will take care to get the correct `scrollTop` from it
-  if (!element) {
-    return document.body;
-  }
-
-  switch (element.nodeName) {
-    case 'HTML':
-    case 'BODY':
-      return element.ownerDocument.body;
-    case '#document':
-      return element.body;
-  }
-
-  // Firefox want us to check `-x` and `-y` variations as well
-
-  var _getStyleComputedProp = getStyleComputedProperty(element),
-      overflow = _getStyleComputedProp.overflow,
-      overflowX = _getStyleComputedProp.overflowX,
-      overflowY = _getStyleComputedProp.overflowY;
-
-  if (/(auto|scroll)/.test(overflow + overflowY + overflowX)) {
-    return element;
-  }
-
-  return getScrollParent(getParentNode(element));
-}
-
-/**
- * Returns the offset parent of the given element
- * @method
- * @memberof Popper.Utils
- * @argument {Element} element
- * @returns {Element} offset parent
- */
-function getOffsetParent(element) {
-  // NOTE: 1 DOM access here
-  var offsetParent = element && element.offsetParent;
-  var nodeName = offsetParent && offsetParent.nodeName;
-
-  if (!nodeName || nodeName === 'BODY' || nodeName === 'HTML') {
-    if (element) {
-      return element.ownerDocument.documentElement;
-    }
-
-    return document.documentElement;
-  }
-
-  // .offsetParent will return the closest TD or TABLE in case
-  // no offsetParent is present, I hate this job...
-  if (['TD', 'TABLE'].indexOf(offsetParent.nodeName) !== -1 && getStyleComputedProperty(offsetParent, 'position') === 'static') {
-    return getOffsetParent(offsetParent);
-  }
-
-  return offsetParent;
-}
-
-function isOffsetContainer(element) {
-  var nodeName = element.nodeName;
-
-  if (nodeName === 'BODY') {
-    return false;
-  }
-  return nodeName === 'HTML' || getOffsetParent(element.firstElementChild) === element;
-}
-
-/**
- * Finds the root node (document, shadowDOM root) of the given element
- * @method
- * @memberof Popper.Utils
- * @argument {Element} node
- * @returns {Element} root node
- */
-function getRoot(node) {
-  if (node.parentNode !== null) {
-    return getRoot(node.parentNode);
-  }
-
-  return node;
-}
-
-/**
- * Finds the offset parent common to the two provided nodes
- * @method
- * @memberof Popper.Utils
- * @argument {Element} element1
- * @argument {Element} element2
- * @returns {Element} common offset parent
- */
-function findCommonOffsetParent(element1, element2) {
-  // This check is needed to avoid errors in case one of the elements isn't defined for any reason
-  if (!element1 || !element1.nodeType || !element2 || !element2.nodeType) {
-    return document.documentElement;
-  }
-
-  // Here we make sure to give as "start" the element that comes first in the DOM
-  var order = element1.compareDocumentPosition(element2) & Node.DOCUMENT_POSITION_FOLLOWING;
-  var start = order ? element1 : element2;
-  var end = order ? element2 : element1;
-
-  // Get common ancestor container
-  var range = document.createRange();
-  range.setStart(start, 0);
-  range.setEnd(end, 0);
-  var commonAncestorContainer = range.commonAncestorContainer;
-
-  // Both nodes are inside #document
-
-  if (element1 !== commonAncestorContainer && element2 !== commonAncestorContainer || start.contains(end)) {
-    if (isOffsetContainer(commonAncestorContainer)) {
-      return commonAncestorContainer;
-    }
-
-    return getOffsetParent(commonAncestorContainer);
-  }
-
-  // one of the nodes is inside shadowDOM, find which one
-  var element1root = getRoot(element1);
-  if (element1root.host) {
-    return findCommonOffsetParent(element1root.host, element2);
-  } else {
-    return findCommonOffsetParent(element1, getRoot(element2).host);
-  }
-}
-
-/**
- * Gets the scroll value of the given element in the given side (top and left)
- * @method
- * @memberof Popper.Utils
- * @argument {Element} element
- * @argument {String} side `top` or `left`
- * @returns {number} amount of scrolled pixels
- */
-function getScroll(element) {
-  var side = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'top';
-
-  var upperSide = side === 'top' ? 'scrollTop' : 'scrollLeft';
-  var nodeName = element.nodeName;
-
-  if (nodeName === 'BODY' || nodeName === 'HTML') {
-    var html = element.ownerDocument.documentElement;
-    var scrollingElement = element.ownerDocument.scrollingElement || html;
-    return scrollingElement[upperSide];
-  }
-
-  return element[upperSide];
-}
-
-/*
- * Sum or subtract the element scroll values (left and top) from a given rect object
- * @method
- * @memberof Popper.Utils
- * @param {Object} rect - Rect object you want to change
- * @param {HTMLElement} element - The element from the function reads the scroll values
- * @param {Boolean} subtract - set to true if you want to subtract the scroll values
- * @return {Object} rect - The modifier rect object
- */
-function includeScroll(rect, element) {
-  var subtract = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
-
-  var scrollTop = getScroll(element, 'top');
-  var scrollLeft = getScroll(element, 'left');
-  var modifier = subtract ? -1 : 1;
-  rect.top += scrollTop * modifier;
-  rect.bottom += scrollTop * modifier;
-  rect.left += scrollLeft * modifier;
-  rect.right += scrollLeft * modifier;
-  return rect;
-}
-
-/*
- * Helper to detect borders of a given element
- * @method
- * @memberof Popper.Utils
- * @param {CSSStyleDeclaration} styles
- * Result of `getStyleComputedProperty` on the given element
- * @param {String} axis - `x` or `y`
- * @return {number} borders - The borders size of the given axis
- */
-
-function getBordersSize(styles, axis) {
-  var sideA = axis === 'x' ? 'Left' : 'Top';
-  var sideB = sideA === 'Left' ? 'Right' : 'Bottom';
-
-  return parseFloat(styles['border' + sideA + 'Width'], 10) + parseFloat(styles['border' + sideB + 'Width'], 10);
-}
-
-/**
- * Tells if you are running Internet Explorer 10
- * @method
- * @memberof Popper.Utils
- * @returns {Boolean} isIE10
- */
-var isIE10 = undefined;
-
-var isIE10$1 = function () {
-  if (isIE10 === undefined) {
-    isIE10 = navigator.appVersion.indexOf('MSIE 10') !== -1;
-  }
-  return isIE10;
-};
-
-function getSize(axis, body, html, computedStyle) {
-  return Math.max(body['offset' + axis], body['scroll' + axis], html['client' + axis], html['offset' + axis], html['scroll' + axis], isIE10$1() ? html['offset' + axis] + computedStyle['margin' + (axis === 'Height' ? 'Top' : 'Left')] + computedStyle['margin' + (axis === 'Height' ? 'Bottom' : 'Right')] : 0);
-}
-
-function getWindowSizes() {
-  var body = document.body;
-  var html = document.documentElement;
-  var computedStyle = isIE10$1() && getComputedStyle(html);
-
-  return {
-    height: getSize('Height', body, html, computedStyle),
-    width: getSize('Width', body, html, computedStyle)
-  };
-}
-
-var classCallCheck = function (instance, Constructor) {
-  if (!(instance instanceof Constructor)) {
-    throw new TypeError("Cannot call a class as a function");
-  }
-};
-
-var createClass = function () {
-  function defineProperties(target, props) {
-    for (var i = 0; i < props.length; i++) {
-      var descriptor = props[i];
-      descriptor.enumerable = descriptor.enumerable || false;
-      descriptor.configurable = true;
-      if ("value" in descriptor) descriptor.writable = true;
-      Object.defineProperty(target, descriptor.key, descriptor);
-    }
-  }
-
-  return function (Constructor, protoProps, staticProps) {
-    if (protoProps) defineProperties(Constructor.prototype, protoProps);
-    if (staticProps) defineProperties(Constructor, staticProps);
-    return Constructor;
-  };
-}();
-
-
-
-
-
-var defineProperty = function (obj, key, value) {
-  if (key in obj) {
-    Object.defineProperty(obj, key, {
-      value: value,
-      enumerable: true,
-      configurable: true,
-      writable: true
-    });
-  } else {
-    obj[key] = value;
-  }
-
-  return obj;
-};
-
-var _extends = Object.assign || function (target) {
-  for (var i = 1; i < arguments.length; i++) {
-    var source = arguments[i];
-
-    for (var key in source) {
-      if (Object.prototype.hasOwnProperty.call(source, key)) {
-        target[key] = source[key];
-      }
-    }
-  }
-
-  return target;
-};
-
-/**
- * Given element offsets, generate an output similar to getBoundingClientRect
- * @method
- * @memberof Popper.Utils
- * @argument {Object} offsets
- * @returns {Object} ClientRect like output
- */
-function getClientRect(offsets) {
-  return _extends({}, offsets, {
-    right: offsets.left + offsets.width,
-    bottom: offsets.top + offsets.height
-  });
-}
-
-/**
- * Get bounding client rect of given element
- * @method
- * @memberof Popper.Utils
- * @param {HTMLElement} element
- * @return {Object} client rect
- */
-function getBoundingClientRect(element) {
-  var rect = {};
-
-  // IE10 10 FIX: Please, don't ask, the element isn't
-  // considered in DOM in some circumstances...
-  // This isn't reproducible in IE10 compatibility mode of IE11
-  try {
-    if (isIE10$1()) {
-      rect = element.getBoundingClientRect();
-      var scrollTop = getScroll(element, 'top');
-      var scrollLeft = getScroll(element, 'left');
-      rect.top += scrollTop;
-      rect.left += scrollLeft;
-      rect.bottom += scrollTop;
-      rect.right += scrollLeft;
-    } else {
-      rect = element.getBoundingClientRect();
-    }
-  } catch (e) {}
-
-  var result = {
-    left: rect.left,
-    top: rect.top,
-    width: rect.right - rect.left,
-    height: rect.bottom - rect.top
-  };
-
-  // subtract scrollbar size from sizes
-  var sizes = element.nodeName === 'HTML' ? getWindowSizes() : {};
-  var width = sizes.width || element.clientWidth || result.right - result.left;
-  var height = sizes.height || element.clientHeight || result.bottom - result.top;
-
-  var horizScrollbar = element.offsetWidth - width;
-  var vertScrollbar = element.offsetHeight - height;
-
-  // if an hypothetical scrollbar is detected, we must be sure it's not a `border`
-  // we make this check conditional for performance reasons
-  if (horizScrollbar || vertScrollbar) {
-    var styles = getStyleComputedProperty(element);
-    horizScrollbar -= getBordersSize(styles, 'x');
-    vertScrollbar -= getBordersSize(styles, 'y');
-
-    result.width -= horizScrollbar;
-    result.height -= vertScrollbar;
-  }
-
-  return getClientRect(result);
-}
-
-function getOffsetRectRelativeToArbitraryNode(children, parent) {
-  var isIE10 = isIE10$1();
-  var isHTML = parent.nodeName === 'HTML';
-  var childrenRect = getBoundingClientRect(children);
-  var parentRect = getBoundingClientRect(parent);
-  var scrollParent = getScrollParent(children);
-
-  var styles = getStyleComputedProperty(parent);
-  var borderTopWidth = parseFloat(styles.borderTopWidth, 10);
-  var borderLeftWidth = parseFloat(styles.borderLeftWidth, 10);
-
-  var offsets = getClientRect({
-    top: childrenRect.top - parentRect.top - borderTopWidth,
-    left: childrenRect.left - parentRect.left - borderLeftWidth,
-    width: childrenRect.width,
-    height: childrenRect.height
-  });
-  offsets.marginTop = 0;
-  offsets.marginLeft = 0;
-
-  // Subtract margins of documentElement in case it's being used as parent
-  // we do this only on HTML because it's the only element that behaves
-  // differently when margins are applied to it. The margins are included in
-  // the box of the documentElement, in the other cases not.
-  if (!isIE10 && isHTML) {
-    var marginTop = parseFloat(styles.marginTop, 10);
-    var marginLeft = parseFloat(styles.marginLeft, 10);
-
-    offsets.top -= borderTopWidth - marginTop;
-    offsets.bottom -= borderTopWidth - marginTop;
-    offsets.left -= borderLeftWidth - marginLeft;
-    offsets.right -= borderLeftWidth - marginLeft;
-
-    // Attach marginTop and marginLeft because in some circumstances we may need them
-    offsets.marginTop = marginTop;
-    offsets.marginLeft = marginLeft;
-  }
-
-  if (isIE10 ? parent.contains(scrollParent) : parent === scrollParent && scrollParent.nodeName !== 'BODY') {
-    offsets = includeScroll(offsets, parent);
-  }
-
-  return offsets;
-}
-
-function getViewportOffsetRectRelativeToArtbitraryNode(element) {
-  var html = element.ownerDocument.documentElement;
-  var relativeOffset = getOffsetRectRelativeToArbitraryNode(element, html);
-  var width = Math.max(html.clientWidth, window.innerWidth || 0);
-  var height = Math.max(html.clientHeight, window.innerHeight || 0);
-
-  var scrollTop = getScroll(html);
-  var scrollLeft = getScroll(html, 'left');
-
-  var offset = {
-    top: scrollTop - relativeOffset.top + relativeOffset.marginTop,
-    left: scrollLeft - relativeOffset.left + relativeOffset.marginLeft,
-    width: width,
-    height: height
-  };
-
-  return getClientRect(offset);
-}
-
-/**
- * Check if the given element is fixed or is inside a fixed parent
- * @method
- * @memberof Popper.Utils
- * @argument {Element} element
- * @argument {Element} customContainer
- * @returns {Boolean} answer to "isFixed?"
- */
-function isFixed(element) {
-  var nodeName = element.nodeName;
-  if (nodeName === 'BODY' || nodeName === 'HTML') {
-    return false;
-  }
-  if (getStyleComputedProperty(element, 'position') === 'fixed') {
-    return true;
-  }
-  return isFixed(getParentNode(element));
-}
-
-/**
- * Computed the boundaries limits and return them
- * @method
- * @memberof Popper.Utils
- * @param {HTMLElement} popper
- * @param {HTMLElement} reference
- * @param {number} padding
- * @param {HTMLElement} boundariesElement - Element used to define the boundaries
- * @param {HTMLElement} fixedParent - Force this element as the parent
- * @returns {Object} Coordinates of the boundaries
- */
-function getBoundaries(popper, reference, padding, boundariesElement) {
-  var fixedParent = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : null;
-
-  // NOTE: 1 DOM access here
-  var boundaries = { top: 0, left: 0 };
-  var offsetParent = fixedParent || findCommonOffsetParent(popper, reference);
-
-  // Handle viewport case
-  if (boundariesElement === 'viewport') {
-    boundaries = getViewportOffsetRectRelativeToArtbitraryNode(offsetParent);
-  } else {
-    // Handle other cases based on DOM element used as boundaries
-    var boundariesNode = void 0;
-    if (boundariesElement === 'scrollParent') {
-      boundariesNode = getScrollParent(getParentNode(reference));
-      if (boundariesNode.nodeName === 'BODY') {
-        boundariesNode = popper.ownerDocument.documentElement;
-      }
-    } else if (boundariesElement === 'window') {
-      boundariesNode = popper.ownerDocument.documentElement;
-    } else {
-      boundariesNode = boundariesElement;
-    }
-
-    var offsets = getOffsetRectRelativeToArbitraryNode(boundariesNode, offsetParent);
-
-    // In case of HTML, we need a different computation
-    if (boundariesNode.nodeName === 'HTML' && !isFixed(offsetParent)) {
-      var _getWindowSizes = getWindowSizes(),
-          height = _getWindowSizes.height,
-          width = _getWindowSizes.width;
-
-      boundaries.top += offsets.top - offsets.marginTop;
-      boundaries.bottom = height + offsets.top;
-      boundaries.left += offsets.left - offsets.marginLeft;
-      boundaries.right = width + offsets.left;
-    } else {
-      // for all the other DOM elements, this one is good
-      boundaries = offsets;
-    }
-  }
-
-  // Add paddings
-  boundaries.left += padding;
-  boundaries.top += padding;
-  boundaries.right -= padding;
-  boundaries.bottom -= padding;
-
-  return boundaries;
-}
-
-function getArea(_ref) {
-  var width = _ref.width,
-      height = _ref.height;
-
-  return width * height;
-}
-
-/**
- * Utility used to transform the `auto` placement to the placement with more
- * available space.
- * @method
- * @memberof Popper.Utils
- * @argument {Object} data - The data object generated by update method
- * @argument {Object} options - Modifiers configuration and options
- * @returns {Object} The data object, properly modified
- */
-function computeAutoPlacement(placement, refRect, popper, reference, boundariesElement) {
-  var padding = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : 0;
-
-  if (placement.indexOf('auto') === -1) {
-    return placement;
-  }
-
-  var boundaries = getBoundaries(popper, reference, padding, boundariesElement, null);
-
-  var rects = {
-    top: {
-      width: boundaries.width,
-      height: refRect.top - boundaries.top
-    },
-    right: {
-      width: boundaries.right - refRect.right,
-      height: boundaries.height
-    },
-    bottom: {
-      width: boundaries.width,
-      height: boundaries.bottom - refRect.bottom
-    },
-    left: {
-      width: refRect.left - boundaries.left,
-      height: boundaries.height
-    }
-  };
-
-  var sortedAreas = Object.keys(rects).map(function (key) {
-    return _extends({
-      key: key
-    }, rects[key], {
-      area: getArea(rects[key])
-    });
-  }).sort(function (a, b) {
-    return b.area - a.area;
-  });
-
-  var filteredAreas = sortedAreas.filter(function (_ref2) {
-    var width = _ref2.width,
-        height = _ref2.height;
-    return width >= popper.clientWidth && height >= popper.clientHeight;
-  });
-
-  var computedPlacement = filteredAreas.length > 0 ? filteredAreas[0].key : sortedAreas[0].key;
-
-  var variation = placement.split('-')[1];
-
-  return computedPlacement + (variation ? '-' + variation : '');
-}
-
-/**
- * Get offsets to the reference element
- * @method
- * @memberof Popper.Utils
- * @param {Object} state
- * @param {Element} popper - the popper element
- * @param {Element} reference - the reference element (the popper will be relative to this)
- * @returns {Object} An object containing the offsets which will be applied to the popper
- */
-function getReferenceOffsets(state, popper, reference, fixedParent) {
-  var commonOffsetParent = fixedParent || findCommonOffsetParent(popper, reference);
-  return getOffsetRectRelativeToArbitraryNode(reference, commonOffsetParent);
-}
-
-/**
- * Get the outer sizes of the given element (offset size + margins)
- * @method
- * @memberof Popper.Utils
- * @argument {Element} element
- * @returns {Object} object containing width and height properties
- */
-function getOuterSizes(element) {
-  var styles = getComputedStyle(element);
-  var x = parseFloat(styles.marginTop) + parseFloat(styles.marginBottom);
-  var y = parseFloat(styles.marginLeft) + parseFloat(styles.marginRight);
-  var result = {
-    width: element.offsetWidth + y,
-    height: element.offsetHeight + x
-  };
-  return result;
-}
-
-/**
- * Get the opposite placement of the given one
- * @method
- * @memberof Popper.Utils
- * @argument {String} placement
- * @returns {String} flipped placement
- */
-function getOppositePlacement(placement) {
-  var hash = { left: 'right', right: 'left', bottom: 'top', top: 'bottom' };
-  return placement.replace(/left|right|bottom|top/g, function (matched) {
-    return hash[matched];
-  });
-}
-
-/**
- * Get offsets to the popper
- * @method
- * @memberof Popper.Utils
- * @param {Object} position - CSS position the Popper will get applied
- * @param {HTMLElement} popper - the popper element
- * @param {Object} referenceOffsets - the reference offsets (the popper will be relative to this)
- * @param {String} placement - one of the valid placement options
- * @returns {Object} popperOffsets - An object containing the offsets which will be applied to the popper
- */
-function getPopperOffsets(popper, referenceOffsets, placement) {
-  placement = placement.split('-')[0];
-
-  // Get popper node sizes
-  var popperRect = getOuterSizes(popper);
-
-  // Add position, width and height to our offsets object
-  var popperOffsets = {
-    width: popperRect.width,
-    height: popperRect.height
-  };
-
-  // depending by the popper placement we have to compute its offsets slightly differently
-  var isHoriz = ['right', 'left'].indexOf(placement) !== -1;
-  var mainSide = isHoriz ? 'top' : 'left';
-  var secondarySide = isHoriz ? 'left' : 'top';
-  var measurement = isHoriz ? 'height' : 'width';
-  var secondaryMeasurement = !isHoriz ? 'height' : 'width';
-
-  popperOffsets[mainSide] = referenceOffsets[mainSide] + referenceOffsets[measurement] / 2 - popperRect[measurement] / 2;
-  if (placement === secondarySide) {
-    popperOffsets[secondarySide] = referenceOffsets[secondarySide] - popperRect[secondaryMeasurement];
-  } else {
-    popperOffsets[secondarySide] = referenceOffsets[getOppositePlacement(secondarySide)];
-  }
-
-  return popperOffsets;
-}
-
-/**
- * Mimics the `find` method of Array
- * @method
- * @memberof Popper.Utils
- * @argument {Array} arr
- * @argument prop
- * @argument value
- * @returns index or -1
- */
-function find(arr, check) {
-  // use native find if supported
-  if (Array.prototype.find) {
-    return arr.find(check);
-  }
-
-  // use `filter` to obtain the same behavior of `find`
-  return arr.filter(check)[0];
-}
-
-/**
- * Return the index of the matching object
- * @method
- * @memberof Popper.Utils
- * @argument {Array} arr
- * @argument prop
- * @argument value
- * @returns index or -1
- */
-function findIndex(arr, prop, value) {
-  // use native findIndex if supported
-  if (Array.prototype.findIndex) {
-    return arr.findIndex(function (cur) {
-      return cur[prop] === value;
-    });
-  }
-
-  // use `find` + `indexOf` if `findIndex` isn't supported
-  var match = find(arr, function (obj) {
-    return obj[prop] === value;
-  });
-  return arr.indexOf(match);
-}
-
-/**
- * Loop trough the list of modifiers and run them in order,
- * each of them will then edit the data object.
- * @method
- * @memberof Popper.Utils
- * @param {dataObject} data
- * @param {Array} modifiers
- * @param {String} ends - Optional modifier name used as stopper
- * @returns {dataObject}
- */
-function runModifiers(modifiers, data, ends) {
-  var modifiersToRun = ends === undefined ? modifiers : modifiers.slice(0, findIndex(modifiers, 'name', ends));
-
-  modifiersToRun.forEach(function (modifier) {
-    if (modifier['function']) {
-      // eslint-disable-line dot-notation
-      console.warn('`modifier.function` is deprecated, use `modifier.fn`!');
-    }
-    var fn = modifier['function'] || modifier.fn; // eslint-disable-line dot-notation
-    if (modifier.enabled && isFunction(fn)) {
-      // Add properties to offsets to make them a complete clientRect object
-      // we do this before each modifier to make sure the previous one doesn't
-      // mess with these values
-      data.offsets.popper = getClientRect(data.offsets.popper);
-      data.offsets.reference = getClientRect(data.offsets.reference);
-
-      data = fn(data, modifier);
-    }
-  });
-
-  return data;
-}
-
-/**
- * Updates the position of the popper, computing the new offsets and applying
- * the new style.<br />
- * Prefer `scheduleUpdate` over `update` because of performance reasons.
- * @arguments {Function} done - called once the update ends
- * @method
- * @memberof Popper
- */
-function update(done) {
-  // if popper is destroyed, don't perform any further update
-  if (this.state.isDestroyed) {
-    done && done(undefined);
-    return;
-  }
-
-  var data = {
-    instance: this,
-    styles: {},
-    arrowStyles: {},
-    attributes: {},
-    flipped: false,
-    offsets: {}
-  };
-
-  // compute reference element offsets
-  data.offsets.reference = getReferenceOffsets(this.state, this.popper, this.reference, this.options.positionFixed ? window.document.documentElement : undefined);
-
-  // compute auto placement, store placement inside the data object,
-  // modifiers will be able to edit `placement` if needed
-  // and refer to originalPlacement to know the original value
-  data.placement = computeAutoPlacement(this.options.placement, data.offsets.reference, this.popper, this.reference, this.options.modifiers.flip.boundariesElement, this.options.modifiers.flip.padding);
-
-  // store the computed placement inside `originalPlacement`
-  data.originalPlacement = data.placement;
-
-  data.positionFixed = this.options.positionFixed;
-
-  // compute the popper offsets
-  data.offsets.popper = getPopperOffsets(this.popper, data.offsets.reference, data.placement);
-  data.offsets.popper.position = this.options.positionFixed ? 'fixed' : 'absolute';
-
-  // run the modifiers
-  data = runModifiers(this.modifiers, data);
-
-  // the first `update` will call `onCreate` callback
-  // the other ones will call `onUpdate` callback
-  if (!this.state.isCreated) {
-    this.state.isCreated = true;
-    this.options.onCreate(data);
-  } else {
-    this.options.onUpdate(data);
-  }
-
-  done && done(data);
-}
-
-/**
- * Helper used to know if the given modifier is enabled.
- * @method
- * @memberof Popper.Utils
- * @returns {Boolean}
- */
-function isModifierEnabled(modifiers, modifierName) {
-  return modifiers.some(function (_ref) {
-    var name = _ref.name,
-        enabled = _ref.enabled;
-    return enabled && name === modifierName;
-  });
-}
-
-/**
- * Get the prefixed supported property name
- * @method
- * @memberof Popper.Utils
- * @argument {String} property (camelCase)
- * @returns {String} prefixed property (camelCase or PascalCase, depending on the vendor prefix)
- */
-function getSupportedPropertyName(property) {
-  var prefixes = [false, 'ms', 'Webkit', 'Moz', 'O'];
-  var upperProp = property.charAt(0).toUpperCase() + property.slice(1);
-
-  for (var i = 0; i < prefixes.length - 1; i++) {
-    var prefix = prefixes[i];
-    var toCheck = prefix ? '' + prefix + upperProp : property;
-    if (typeof document.body.style[toCheck] !== 'undefined') {
-      return toCheck;
-    }
-  }
-  return null;
-}
-
-/**
- * Destroy the popper
- * @method
- * @memberof Popper
- */
-function destroy() {
-  this.state.isDestroyed = true;
-
-  // touch DOM only if `applyStyle` modifier is enabled
-  if (isModifierEnabled(this.modifiers, 'applyStyle')) {
-    this.popper.removeAttribute('data-popper-placement');
-    this.popper.style.left = '';
-    this.popper.style.position = '';
-    this.popper.style.top = '';
-    this.popper.style[getSupportedPropertyName('transform')] = '';
-  }
-
-  this.disableEventListeners();
-
-  // remove the popper if user explicity asked for the deletion on destroy
-  // do not use `remove` because IE11 doesn't support it
-  if (this.options.removeOnDestroy) {
-    this.popper.parentNode.removeChild(this.popper);
-  }
-  return this;
-}
-
-/**
- * @function
- * @memberof Modifiers
- * @argument {Object} data - The data object generated by `update` method
- * @argument {Object} options - Modifiers configuration and options
- * @returns {Object} The data object, properly modified
- */
-function shift(data) {
-  var placement = data.placement;
-  var basePlacement = placement.split('-')[0];
-  var shiftvariation = placement.split('-')[1];
-
-  // if shift shiftvariation is specified, run the modifier
-  if (shiftvariation) {
-    var _data$offsets = data.offsets,
-        reference = _data$offsets.reference,
-        popper = _data$offsets.popper;
-
-    var isVertical = ['bottom', 'top'].indexOf(basePlacement) !== -1;
-    var side = isVertical ? 'left' : 'top';
-    var measurement = isVertical ? 'width' : 'height';
-
-    var shiftOffsets = {
-      start: defineProperty({}, side, reference[side]),
-      end: defineProperty({}, side, reference[side] + reference[measurement] - popper[measurement])
-    };
-
-    data.offsets.popper = _extends({}, popper, shiftOffsets[shiftvariation]);
-  }
-
-  return data;
-}
-
-/**
- * @function
- * @memberof Modifiers
- * @argument {Object} data - The data object generated by `update` method
- * @argument {Object} options - Modifiers configuration and options
- * @returns {Object} The data object, properly modified
- */
-function preventOverflow(data, options) {
-  var fixedParent = data.positionFixed ? window.document.documentElement : undefined;
-  var boundariesElement = options.boundariesElement || fixedParent || getOffsetParent(data.instance.popper);
-
-  // If offsetParent is the reference element, we really want to
-  // go one step up and use the next offsetParent as reference to
-  // avoid to make this modifier completely useless and look like broken
-  if (data.instance.reference === boundariesElement) {
-    boundariesElement = getOffsetParent(boundariesElement);
-  }
-
-  var boundaries = getBoundaries(data.instance.popper, data.instance.reference, options.padding, boundariesElement, fixedParent);
-  options.boundaries = boundaries;
-
-  var order = options.priority;
-  var popper = data.offsets.popper;
-
-  var check = {
-    primary: function primary(placement) {
-      var value = popper[placement];
-      if (popper[placement] < boundaries[placement] && !options.escapeWithReference) {
-        value = Math.max(popper[placement], boundaries[placement]);
-      }
-      return defineProperty({}, placement, value);
-    },
-    secondary: function secondary(placement) {
-      var mainSide = placement === 'right' ? 'left' : 'top';
-      var value = popper[mainSide];
-      if (popper[placement] > boundaries[placement] && !options.escapeWithReference) {
-        value = Math.min(popper[mainSide], boundaries[placement] - (placement === 'right' ? popper.width : popper.height));
-      }
-      return defineProperty({}, mainSide, value);
-    }
-  };
-
-  order.forEach(function (placement) {
-    var side = ['left', 'top'].indexOf(placement) !== -1 ? 'primary' : 'secondary';
-    popper = _extends({}, popper, check[side](placement));
-  });
-
-  data.offsets.popper = popper;
-
-  return data;
-}
-
-/**
- * Get the opposite placement variation of the given one
- * @method
- * @memberof Popper.Utils
- * @argument {String} placement variation
- * @returns {String} flipped placement variation
- */
-function getOppositeVariation(variation) {
-  if (variation === 'end') {
-    return 'start';
-  } else if (variation === 'start') {
-    return 'end';
-  }
-  return variation;
-}
-
-/**
- * List of accepted placements to use as values of the `placement` option.<br />
- * Valid placements are:
- * - `auto`
- * - `top`
- * - `right`
- * - `bottom`
- * - `left`
- *
- * Each placement can have a variation from this list:
- * - `-start`
- * - `-end`
- *
- * Variations are interpreted easily if you think of them as the left to right
- * written languages. Horizontally (`top` and `bottom`), `start` is left and `end`
- * is right.<br />
- * Vertically (`left` and `right`), `start` is top and `end` is bottom.
- *
- * Some valid examples are:
- * - `top-end` (on top of reference, right aligned)
- * - `right-start` (on right of reference, top aligned)
- * - `bottom` (on bottom, centered)
- * - `auto-right` (on the side with more space available, alignment depends by placement)
- *
- * @static
- * @type {Array}
- * @enum {String}
- * @readonly
- * @method placements
- * @memberof Popper
- */
-var placements = ['auto-start', 'auto', 'auto-end', 'top-start', 'top', 'top-end', 'right-start', 'right', 'right-end', 'bottom-end', 'bottom', 'bottom-start', 'left-end', 'left', 'left-start'];
-
-// Get rid of `auto` `auto-start` and `auto-end`
-var validPlacements = placements.slice(3);
-
-/**
- * Given an initial placement, returns all the subsequent placements
- * clockwise (or counter-clockwise).
- *
- * @method
- * @memberof Popper.Utils
- * @argument {String} placement - A valid placement (it accepts variations)
- * @argument {Boolean} counter - Set to true to walk the placements counterclockwise
- * @returns {Array} placements including their variations
- */
-function clockwise(placement) {
-  var counter = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
-
-  var index = validPlacements.indexOf(placement);
-  var arr = validPlacements.slice(index + 1).concat(validPlacements.slice(0, index));
-  return counter ? arr.reverse() : arr;
-}
-
-var BEHAVIORS = {
-  FLIP: 'flip',
-  CLOCKWISE: 'clockwise',
-  COUNTERCLOCKWISE: 'counterclockwise'
-};
-
-/**
- * @function
- * @memberof Modifiers
- * @argument {Object} data - The data object generated by update method
- * @argument {Object} options - Modifiers configuration and options
- * @returns {Object} The data object, properly modified
- */
-function flip(data, options) {
-  // if `inner` modifier is enabled, we can't use the `flip` modifier
-  if (isModifierEnabled(data.instance.modifiers, 'inner')) {
-    return data;
-  }
-
-  if (data.flipped && data.placement === data.originalPlacement) {
-    // seems like flip is trying to loop, probably there's not enough space on any of the flippable sides
-    return data;
-  }
-
-  var boundaries = getBoundaries(data.instance.popper, data.instance.reference, options.padding, options.boundariesElement, options.positionFixed ? window.document.documentElement : undefined);
-
-  var placement = data.placement.split('-')[0];
-  var placementOpposite = getOppositePlacement(placement);
-  var variation = data.placement.split('-')[1] || '';
-
-  var flipOrder = [];
-
-  switch (options.behavior) {
-    case BEHAVIORS.FLIP:
-      flipOrder = [placement, placementOpposite];
-      break;
-    case BEHAVIORS.CLOCKWISE:
-      flipOrder = clockwise(placement);
-      break;
-    case BEHAVIORS.COUNTERCLOCKWISE:
-      flipOrder = clockwise(placement, true);
-      break;
-    default:
-      flipOrder = options.behavior;
-  }
-
-  flipOrder.forEach(function (step, index) {
-    if (placement !== step || flipOrder.length === index + 1) {
-      return data;
-    }
-
-    placement = data.placement.split('-')[0];
-    placementOpposite = getOppositePlacement(placement);
-
-    var popperOffsets = data.offsets.popper;
-    var refOffsets = data.offsets.reference;
-
-    // using floor because the reference offsets may contain decimals we are not going to consider here
-    var floor = Math.floor;
-    var overlapsRef = placement === 'left' && floor(popperOffsets.right) > floor(refOffsets.left) || placement === 'right' && floor(popperOffsets.left) < floor(refOffsets.right) || placement === 'top' && floor(popperOffsets.bottom) > floor(refOffsets.top) || placement === 'bottom' && floor(popperOffsets.top) < floor(refOffsets.bottom);
-
-    var overflowsLeft = floor(popperOffsets.left) < floor(boundaries.left);
-    var overflowsRight = floor(popperOffsets.right) > floor(boundaries.right);
-    var overflowsTop = floor(popperOffsets.top) < floor(boundaries.top);
-    var overflowsBottom = floor(popperOffsets.bottom) > floor(boundaries.bottom);
-
-    var overflowsBoundaries = placement === 'left' && overflowsLeft || placement === 'right' && overflowsRight || placement === 'top' && overflowsTop || placement === 'bottom' && overflowsBottom;
-
-    // flip the variation if required
-    var isVertical = ['top', 'bottom'].indexOf(placement) !== -1;
-    var flippedVariation = !!options.flipVariations && (isVertical && variation === 'start' && overflowsLeft || isVertical && variation === 'end' && overflowsRight || !isVertical && variation === 'start' && overflowsTop || !isVertical && variation === 'end' && overflowsBottom);
-
-    if (overlapsRef || overflowsBoundaries || flippedVariation) {
-      // this boolean to detect any flip loop
-      data.flipped = true;
-
-      if (overlapsRef || overflowsBoundaries) {
-        placement = flipOrder[index + 1];
-      }
-
-      if (flippedVariation) {
-        variation = getOppositeVariation(variation);
-      }
-
-      data.placement = placement + (variation ? '-' + variation : '');
-
-      // this object contains `position`, we want to preserve it along with
-      // any additional property we may add in the future
-      data.offsets.popper = _extends({}, data.offsets.popper, getPopperOffsets(data.instance.popper, data.offsets.reference, data.placement));
-
-      data = runModifiers(data.instance.modifiers, data, 'flip');
-    }
-  });
-  return data;
-}
-
-/**
- * @function
- * @memberof Modifiers
- * @argument {Object} data - The data object generated by `update` method
- * @argument {Object} options - Modifiers configuration and options
- * @returns {Object} The data object, properly modified
- */
-function computeStyle(data, options) {
-  var x = options.x,
-      y = options.y;
-  var popper = data.offsets.popper;
-
-  // Remove this legacy support in Popper.js v2
-
-  var legacyGpuAccelerationOption = find(data.instance.modifiers, function (modifier) {
-    return modifier.name === 'applyStyle';
-  }).gpuAcceleration;
-  if (legacyGpuAccelerationOption !== undefined) {
-    console.warn('WARNING: `gpuAcceleration` option moved to `computeStyle` modifier and will not be supported in future versions of Popper.js!');
-  }
-  var gpuAcceleration = legacyGpuAccelerationOption !== undefined ? legacyGpuAccelerationOption : options.gpuAcceleration;
-
-  var offsetParent = getOffsetParent(data.instance.popper);
-  var offsetParentRect = getBoundingClientRect(offsetParent);
-
-  // Styles
-  var styles = {
-    position: popper.position
-  };
-
-  // floor sides to avoid blurry text
-  var offsets = {
-    left: Math.floor(popper.left),
-    top: Math.floor(popper.top),
-    bottom: Math.floor(popper.bottom),
-    right: Math.floor(popper.right)
-  };
-
-  var sideA = x === 'bottom' ? 'top' : 'bottom';
-  var sideB = y === 'right' ? 'left' : 'right';
-
-  // if gpuAcceleration is set to `true` and transform is supported,
-  //  we use `translate3d` to apply the position to the popper we
-  // automatically use the supported prefixed version if needed
-  var prefixedProperty = getSupportedPropertyName('transform');
-
-  // now, let's make a step back and look at this code closely (wtf?)
-  // If the content of the popper grows once it's been positioned, it
-  // may happen that the popper gets misplaced because of the new content
-  // overflowing its reference element
-  // To avoid this problem, we provide two options (x and y), which allow
-  // the consumer to define the offset origin.
-  // If we position a popper on top of a reference element, we can set
-  // `x` to `top` to make the popper grow towards its top instead of
-  // its bottom.
-  var left = void 0,
-      top = void 0;
-  if (sideA === 'bottom') {
-    top = -offsetParentRect.height + offsets.bottom;
-  } else {
-    top = offsets.top;
-  }
-  if (sideB === 'right') {
-    left = -offsetParentRect.width + offsets.right;
-  } else {
-    left = offsets.left;
-  }
-  if (gpuAcceleration && prefixedProperty) {
-    styles[prefixedProperty] = 'translate3d(' + left + 'px, ' + top + 'px, 0)';
-    styles[sideA] = 0;
-    styles[sideB] = 0;
-    styles.willChange = 'transform';
-  } else {
-    // othwerise, we use the standard `top`, `left`, `bottom` and `right` properties
-    var invertTop = sideA === 'bottom' ? -1 : 1;
-    var invertLeft = sideB === 'right' ? -1 : 1;
-    styles[sideA] = top * invertTop;
-    styles[sideB] = left * invertLeft;
-    styles.willChange = sideA + ', ' + sideB;
-  }
-
-  // Attributes
-  var attributes = {
-    'data-popper-placement': data.placement
-  };
-
-  // Update `data` attributes, styles and arrowStyles
-  data.attributes = _extends({}, attributes, data.attributes);
-  data.styles = _extends({}, styles, data.styles);
-  data.arrowStyles = _extends({}, data.offsets.arrow, data.arrowStyles);
-
-  return data;
-}
-
-/**
- * Tells if a given input is a number
- * @method
- * @memberof Popper.Utils
- * @param {*} input to check
- * @return {Boolean}
- */
-function isNumeric(n) {
-  return n !== '' && !isNaN(parseFloat(n)) && isFinite(n);
-}
-
-/**
- * Set the style to the given popper
- * @method
- * @memberof Popper.Utils
- * @argument {Element} element - Element to apply the style to
- * @argument {Object} styles
- * Object with a list of properties and values which will be applied to the element
- */
-function setStyles(element, styles) {
-  Object.keys(styles).forEach(function (prop) {
-    var unit = '';
-    // add unit if the value is numeric and is one of the following
-    if (['width', 'height', 'top', 'right', 'bottom', 'left'].indexOf(prop) !== -1 && isNumeric(styles[prop])) {
-      unit = 'px';
-    }
-    element.style[prop] = styles[prop] + unit;
-  });
-}
-
-/**
- * Set the attributes to the given popper
- * @method
- * @memberof Popper.Utils
- * @argument {Element} element - Element to apply the attributes to
- * @argument {Object} styles
- * Object with a list of properties and values which will be applied to the element
- */
-function setAttributes(element, attributes) {
-  Object.keys(attributes).forEach(function (prop) {
-    var value = attributes[prop];
-    if (value !== false) {
-      element.setAttribute(prop, attributes[prop]);
-    } else {
-      element.removeAttribute(prop);
-    }
-  });
-}
-
-/**
- * @function
- * @memberof Modifiers
- * @argument {Object} data - The data object generated by `update` method
- * @argument {Object} data.styles - List of style properties - values to apply to popper element
- * @argument {Object} data.attributes - List of attribute properties - values to apply to popper element
- * @argument {Object} options - Modifiers configuration and options
- * @returns {Object} The same data object
- */
-function applyStyle(data) {
-  // any property present in `data.styles` will be applied to the popper,
-  // in this way we can make the 3rd party modifiers add custom styles to it
-  // Be aware, modifiers could override the properties defined in the previous
-  // lines of this modifier!
-  setStyles(data.instance.popper, data.styles);
-
-  // any property present in `data.attributes` will be applied to the popper,
-  // they will be set as HTML attributes of the element
-  setAttributes(data.instance.popper, data.attributes);
-
-  // if arrowElement is defined and arrowStyles has some properties
-  if (data.arrowElement && Object.keys(data.arrowStyles).length) {
-    setStyles(data.arrowElement, data.arrowStyles);
-  }
-
-  return data;
-}
-
-/**
- * Set the data-popper-placement attribute before everything else because it could be used
- * to add margins to the popper margins needs to be calculated to get the
- * correct popper offsets.
- * @method
- * @memberof Popper.modifiers
- * @param {HTMLElement} reference - The reference element used to position the popper
- * @param {HTMLElement} popper - The HTML element used as popper.
- * @param {Object} options - Popper.js options
- */
-function applyStyleOnLoad(reference, popper, options, modifierOptions, state) {
-  // compute reference element offsets
-  var referenceOffsets = getReferenceOffsets(state, popper, reference, options.positionFixed ? window.document.documentElement : undefined);
-
-  // compute auto placement, store placement inside the data object,
-  // modifiers will be able to edit `placement` if needed
-  // and refer to originalPlacement to know the original value
-  var placement = computeAutoPlacement(options.placement, referenceOffsets, popper, reference, options.modifiers.flip.boundariesElement, options.modifiers.flip.padding);
-
-  popper.setAttribute('data-popper-placement', placement);
-
-  // Apply `position` to popper before anything else because
-  // without the position applied we can't guarantee correct computations
-  setStyles(popper, { position: options.positionFixed ? 'fixed' : 'absolute' });
-
-  return options;
-}
-
-/**
- * Modifier function, each modifier can have a function of this type assigned
- * to its `fn` property.<br />
- * These functions will be called on each update, this means that you must
- * make sure they are performant enough to avoid performance bottlenecks.
- *
- * @function ModifierFn
- * @argument {dataObject} data - The data object generated by `update` method
- * @argument {Object} options - Modifiers configuration and options
- * @returns {dataObject} The data object, properly modified
- */
-
-/**
- * Modifiers are plugins used to alter the behavior of your poppers.<br />
- * Popper.js uses a set of 9 modifiers to provide all the basic functionalities
- * needed by the library.
- *
- * Usually you don't want to override the `order`, `fn` and `onLoad` props.
- * All the other properties are configurations that could be tweaked.
- * @namespace modifiers
- */
-var modifiers = {
-  /**
-   * Modifier used to shift the popper on the start or end of its reference
-   * element.<br />
-   * It will read the variation of the `placement` property.<br />
-   * It can be one either `-end` or `-start`.
-   * @memberof modifiers
-   * @inner
-   */
-  shift: {
-    /** @prop {number} order=100 - Index used to define the order of execution */
-    order: 100,
-    /** @prop {Boolean} enabled=true - Whether the modifier is enabled or not */
-    enabled: true,
-    /** @prop {ModifierFn} */
-    fn: shift
-  },
-
-  /**
-   * Modifier used to prevent the popper from being positioned outside the boundary.
-   *
-   * An scenario exists where the reference itself is not within the boundaries.<br />
-   * We can say it has "escaped the boundaries" — or just "escaped".<br />
-   * In this case we need to decide whether the popper should either:
-   *
-   * - detach from the reference and remain "trapped" in the boundaries, or
-   * - if it should ignore the boundary and "escape with its reference"
-   *
-   * When `escapeWithReference` is set to`true` and reference is completely
-   * outside its boundaries, the popper will overflow (or completely leave)
-   * the boundaries in order to remain attached to the edge of the reference.
-   *
-   * @memberof modifiers
-   * @inner
-   */
-  preventOverflow: {
-    /** @prop {number} order=300 - Index used to define the order of execution */
-    order: 300,
-    /** @prop {Boolean} enabled=true - Whether the modifier is enabled or not */
-    enabled: true,
-    /** @prop {ModifierFn} */
-    fn: preventOverflow,
-    /**
-     * @prop {Array} [priority=['left','right','top','bottom']]
-     * Popper will try to prevent overflow following these priorities by default,
-     * then, it could overflow on the left and on top of the `boundariesElement`
-     */
-    priority: ['left', 'right', 'top', 'bottom'],
-    /**
-     * @prop {number} padding=5
-     * Amount of pixel used to define a minimum distance between the boundaries
-     * and the popper this makes sure the popper has always a little padding
-     * between the edges of its container
-     */
-    padding: 5,
-    /**
-     * @prop {String|HTMLElement} boundariesElement='scrollParent'
-     * Boundaries used by the modifier, can be `scrollParent`, `window`,
-     * `viewport` or any DOM element.
-     */
-    boundariesElement: 'scrollParent'
-  },
-
-  /**
-   * Modifier used to flip the popper's placement when it starts to overlap its
-   * reference element.
-   *
-   * Requires the `preventOverflow` modifier before it in order to work.
-   *
-   * **NOTE:** this modifier will interrupt the current update cycle and will
-   * restart it if it detects the need to flip the placement.
-   * @memberof modifiers
-   * @inner
-   */
-  flip: {
-    /** @prop {number} order=600 - Index used to define the order of execution */
-    order: 600,
-    /** @prop {Boolean} enabled=true - Whether the modifier is enabled or not */
-    enabled: true,
-    /** @prop {ModifierFn} */
-    fn: flip,
-    /**
-     * @prop {String|Array} behavior='flip'
-     * The behavior used to change the popper's placement. It can be one of
-     * `flip`, `clockwise`, `counterclockwise` or an array with a list of valid
-     * placements (with optional variations).
-     */
-    behavior: 'flip',
-    /**
-     * @prop {number} padding=5
-     * The popper will flip if it hits the edges of the `boundariesElement`
-     */
-    padding: 5,
-    /**
-     * @prop {String|HTMLElement} boundariesElement='viewport'
-     * The element which will define the boundaries of the popper position,
-     * the popper will never be placed outside of the defined boundaries
-     * (except if keepTogether is enabled)
-     */
-    boundariesElement: 'viewport'
-  },
-
-  /**
-   * Computes the style that will be applied to the popper element to gets
-   * properly positioned.
-   *
-   * Note that this modifier will not touch the DOM, it just prepares the styles
-   * so that `applyStyle` modifier can apply it. This separation is useful
-   * in case you need to replace `applyStyle` with a custom implementation.
-   *
-   * This modifier has `850` as `order` value to maintain backward compatibility
-   * with previous versions of Popper.js. Expect the modifiers ordering method
-   * to change in future major versions of the library.
-   *
-   * @memberof modifiers
-   * @inner
-   */
-  computeStyle: {
-    /** @prop {number} order=850 - Index used to define the order of execution */
-    order: 850,
-    /** @prop {Boolean} enabled=true - Whether the modifier is enabled or not */
-    enabled: true,
-    /** @prop {ModifierFn} */
-    fn: computeStyle,
-    /**
-     * @prop {Boolean} gpuAcceleration=true
-     * If true, it uses the CSS 3d transformation to position the popper.
-     * Otherwise, it will use the `top` and `left` properties.
-     */
-    gpuAcceleration: true,
-    /**
-     * @prop {string} [x='bottom']
-     * Where to anchor the X axis (`bottom` or `top`). AKA X offset origin.
-     * Change this if your popper should grow in a direction different from `bottom`
-     */
-    x: 'bottom',
-    /**
-     * @prop {string} [x='left']
-     * Where to anchor the Y axis (`left` or `right`). AKA Y offset origin.
-     * Change this if your popper should grow in a direction different from `right`
-     */
-    y: 'right'
-  },
-
-  /**
-   * Applies the computed styles to the popper element.
-   *
-   * All the DOM manipulations are limited to this modifier. This is useful in case
-   * you want to integrate Popper.js inside a framework or view library and you
-   * want to delegate all the DOM manipulations to it.
-   *
-   * Note that if you disable this modifier, you must make sure the popper element
-   * has its position set to `absolute` before Popper.js can do its work!
-   *
-   * Just disable this modifier and define you own to achieve the desired effect.
-   *
-   * @memberof modifiers
-   * @inner
-   */
-  applyStyle: {
-    /** @prop {number} order=900 - Index used to define the order of execution */
-    order: 900,
-    /** @prop {Boolean} enabled=true - Whether the modifier is enabled or not */
-    enabled: true,
-    /** @prop {ModifierFn} */
-    fn: applyStyle,
-    /** @prop {Function} */
-    onLoad: applyStyleOnLoad,
-    /**
-     * @deprecated since version 1.10.0, the property moved to `computeStyle` modifier
-     * @prop {Boolean} gpuAcceleration=true
-     * If true, it uses the CSS 3d transformation to position the popper.
-     * Otherwise, it will use the `top` and `left` properties.
-     */
-    gpuAcceleration: undefined
-  }
-};
-
-/**
- * The `dataObject` is an object containing all the informations used by Popper.js
- * this object get passed to modifiers and to the `onCreate` and `onUpdate` callbacks.
- * @name dataObject
- * @property {Object} data.instance The Popper.js instance
- * @property {String} data.placement Placement applied to popper
- * @property {String} data.originalPlacement Placement originally defined on init
- * @property {Boolean} data.flipped True if popper has been flipped by flip modifier
- * @property {Boolean} data.hide True if the reference element is out of boundaries, useful to know when to hide the popper.
- * @property {HTMLElement} data.arrowElement Node used as arrow by arrow modifier
- * @property {Object} data.styles Any CSS property defined here will be applied to the popper, it expects the JavaScript nomenclature (eg. `marginBottom`)
- * @property {Object} data.arrowStyles Any CSS property defined here will be applied to the popper arrow, it expects the JavaScript nomenclature (eg. `marginBottom`)
- * @property {Object} data.boundaries Offsets of the popper boundaries
- * @property {Object} data.offsets The measurements of popper, reference and arrow elements.
- * @property {Object} data.offsets.popper `top`, `left`, `width`, `height` values
- * @property {Object} data.offsets.reference `top`, `left`, `width`, `height` values
- * @property {Object} data.offsets.arrow] `top` and `left` offsets, only one of them will be different from 0
- */
-
-/**
- * Default options provided to Popper.js constructor.<br />
- * These can be overriden using the `options` argument of Popper.js.<br />
- * To override an option, simply pass as 3rd argument an object with the same
- * structure of this object, example:
- * ```
- * new Popper(ref, pop, {
- *   modifiers: {
- *     preventOverflow: { enabled: false }
- *   }
- * })
- * ```
- * @type {Object}
- * @static
- * @memberof Popper
- */
-var Defaults = {
-  /**
-   * Popper's placement
-   * @prop {Popper.placements} placement='bottom'
-   */
-  placement: 'bottom',
-
-  /**
-   * Set this to true if you want popper to position it self in 'fixed' mode
-   * @prop {Boolean} positionFixed=false
-   */
-  positionFixed: false,
-
-  /**
-   * Whether events (resize, scroll) are initially enabled
-   * @prop {Boolean} eventsEnabled=true
-   */
-  eventsEnabled: true,
-
-  /**
-   * Set to true if you want to automatically remove the popper when
-   * you call the `destroy` method.
-   * @prop {Boolean} removeOnDestroy=false
-   */
-  removeOnDestroy: false,
-
-  /**
-   * Callback called when the popper is created.<br />
-   * By default, is set to no-op.<br />
-   * Access Popper.js instance with `data.instance`.
-   * @prop {onCreate}
-   */
-  onCreate: function onCreate() {},
-
-  /**
-   * Callback called when the popper is updated, this callback is not called
-   * on the initialization/creation of the popper, but only on subsequent
-   * updates.<br />
-   * By default, is set to no-op.<br />
-   * Access Popper.js instance with `data.instance`.
-   * @prop {onUpdate}
-   */
-  onUpdate: function onUpdate() {},
-
-  /**
-   * List of modifiers used to modify the offsets before they are applied to the popper.
-   * They provide most of the functionalities of Popper.js
-   * @prop {modifiers}
-   */
-  modifiers: modifiers
-};
-
-/**
- * @callback onCreate
- * @param {dataObject} data
- */
-
-/**
- * @callback onUpdate
- * @param {dataObject} data
- */
-
-// Utils
-// Methods
-var Popper = function () {
-  /**
-   * Create a new Popper.js instance
-   * @class Popper
-   * @param {HTMLElement|referenceObject} reference - The reference element used to position the popper
-   * @param {HTMLElement} popper - The HTML element used as popper.
-   * @param {Object} options - Your custom options to override the ones defined in [Defaults](#defaults)
-   * @return {Object} instance - The generated Popper.js instance
-   */
-  function Popper(reference, popper) {
-    var _this = this;
-
-    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-    classCallCheck(this, Popper);
-
-    this.scheduleUpdate = function () {
-      return new Promise(function (done) {
-        return requestAnimationFrame(function () {
-          return _this.debouncedUpdate(done);
-        });
-      });
-    };
-
-    // don't use this, it's used only by Popper#scheduleUpdate internally
-    this.debouncedUpdate = debounce(this.update.bind(this));
-
-    // with {} we create a new object with the options inside it
-    this.options = _extends({}, Popper.Defaults, options);
-
-    // init state
-    this.state = {
-      isDestroyed: false,
-      isCreated: false,
-      scrollParents: []
-    };
-
-    this.reference = reference;
-    this.popper = popper;
-
-    // Deep merge modifiers options
-    this.options.modifiers = {};
-    Object.keys(_extends({}, Popper.Defaults.modifiers, options.modifiers)).forEach(function (name) {
-      _this.options.modifiers[name] = _extends({}, Popper.Defaults.modifiers[name] || {}, options.modifiers ? options.modifiers[name] : {});
-    });
-
-    // Refactoring modifiers' list (Object => Array)
-    this.modifiers = Object.keys(this.options.modifiers).map(function (name) {
-      return _extends({
-        name: name
-      }, _this.options.modifiers[name]);
-    })
-    // sort the modifiers by order
-    .sort(function (a, b) {
-      return a.order - b.order;
-    });
-
-    // modifiers have the ability to execute arbitrary code when Popper.js get inited
-    // such code is executed in the same order of its modifier
-    // they could add new properties to their options configuration
-    // BE AWARE: don't add options to `options.modifiers.name` but to `modifierOptions`!
-    this.modifiers.forEach(function (modifierOptions) {
-      if (modifierOptions.enabled && isFunction(modifierOptions.onLoad)) {
-        modifierOptions.onLoad(_this.reference, _this.popper, _this.options, modifierOptions, _this.state);
-      }
-    });
-
-    // fire the first update to position the popper in the right place
-    this.debouncedUpdate();
-  }
-
-  // We can't use class properties because they don't get listed in the
-  // class prototype and break stuff like Sinon stubs
-
-
-  createClass(Popper, [{
-    key: 'update',
-    value: function update$$1(done) {
-      return update.call(this, done);
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy$$1() {
-      return destroy.call(this);
-    }
-
-    /**
-     * Schedule an update, it will run on the next UI update available
-     * It returns a promise so that you can use it with `async/await`
-     * @method scheduleUpdate
-     * @returns Promise
-     * @memberof Popper
-     */
-
-  }]);
-  return Popper;
-}();
-
-/**
- * The `referenceObject` is an object that provides an interface compatible with Popper.js
- * and lets you use it as replacement of a real DOM node.<br />
- * You can use this method to position a popper relatively to a set of coordinates
- * in case you don't have a DOM node to use as reference.
- *
- * ```
- * new Popper(referenceObject, popperNode);
- * ```
- *
- * NB: This feature isn't supported in Internet Explorer 10
- * @name referenceObject
- * @property {Function} data.getBoundingClientRect
- * A function that returns a set of coordinates compatible with the native `getBoundingClientRect` method.
- * @property {number} data.clientWidth
- * An ES6 getter that will return the width of the virtual reference element.
- * @property {number} data.clientHeight
- * An ES6 getter that will return the height of the virtual reference element.
- */
-
-
-Popper.Defaults = Defaults;
-
-return Popper;
-
-})));
-//# sourceMappingURL=popper.js.map
-
 /*!
   * Bootstrap v5.1.0 (https://getbootstrap.com/)
   * Copyright 2011-2021 The Bootstrap Authors (https://github.com/twbs/bootstrap/graphs/contributors)
@@ -17744,4219 +15907,1759 @@ return Popper;
 })));
 //# sourceMappingURL=bootstrap.js.map
 
-/*
- * SystemJS v0.18.17
- */
-(function() {
-function bootstrap() {(function(__global) {
+/* axios v0.21.1 | (c) 2020 by Matt Zabriskie */
+(function webpackUniversalModuleDefinition(root, factory) {
+	if(typeof exports === 'object' && typeof module === 'object')
+		module.exports = factory();
+	else if(typeof define === 'function' && define.amd)
+		define([], factory);
+	else if(typeof exports === 'object')
+		exports["axios"] = factory();
+	else
+		root["axios"] = factory();
+})(this, function() {
+return /******/ (function(modules) { // webpackBootstrap
+/******/ 	// The module cache
+/******/ 	var installedModules = {};
+/******/
+/******/ 	// The require function
+/******/ 	function __webpack_require__(moduleId) {
+/******/
+/******/ 		// Check if module is in cache
+/******/ 		if(installedModules[moduleId])
+/******/ 			return installedModules[moduleId].exports;
+/******/
+/******/ 		// Create a new module (and put it into the cache)
+/******/ 		var module = installedModules[moduleId] = {
+/******/ 			exports: {},
+/******/ 			id: moduleId,
+/******/ 			loaded: false
+/******/ 		};
+/******/
+/******/ 		// Execute the module function
+/******/ 		modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+/******/
+/******/ 		// Flag the module as loaded
+/******/ 		module.loaded = true;
+/******/
+/******/ 		// Return the exports of the module
+/******/ 		return module.exports;
+/******/ 	}
+/******/
+/******/
+/******/ 	// expose the modules object (__webpack_modules__)
+/******/ 	__webpack_require__.m = modules;
+/******/
+/******/ 	// expose the module cache
+/******/ 	__webpack_require__.c = installedModules;
+/******/
+/******/ 	// __webpack_public_path__
+/******/ 	__webpack_require__.p = "";
+/******/
+/******/ 	// Load entry module and return exports
+/******/ 	return __webpack_require__(0);
+/******/ })
+/************************************************************************/
+/******/ ([
+/* 0 */
+/***/ (function(module, exports, __webpack_require__) {
 
-  var isWorker = typeof window == 'undefined' && typeof self != 'undefined' && typeof importScripts != 'undefined';
-  var isBrowser = typeof window != 'undefined' && typeof document != 'undefined';
-  var isWindows = typeof process != 'undefined' && !!process.platform.match(/^win/);
+	module.exports = __webpack_require__(1);
 
-  if (!__global.console)
-    __global.console = { assert: function() {} };
+/***/ }),
+/* 1 */
+/***/ (function(module, exports, __webpack_require__) {
 
-  // IE8 support
-  var indexOf = Array.prototype.indexOf || function(item) {
-    for (var i = 0, thisLen = this.length; i < thisLen; i++) {
-      if (this[i] === item) {
-        return i;
-      }
-    }
-    return -1;
-  };
-  
-  var defineProperty;
-  (function () {
-    try {
-      if (!!Object.defineProperty({}, 'a', {}))
-        defineProperty = Object.defineProperty;
-    }
-    catch (e) {
-      defineProperty = function(obj, prop, opt) {
-        try {
-          obj[prop] = opt.value || opt.get.call(obj);
-        }
-        catch(e) {}
-      }
-    }
-  })();
+	'use strict';
+	
+	var utils = __webpack_require__(2);
+	var bind = __webpack_require__(3);
+	var Axios = __webpack_require__(4);
+	var mergeConfig = __webpack_require__(22);
+	var defaults = __webpack_require__(10);
+	
+	/**
+	 * Create an instance of Axios
+	 *
+	 * @param {Object} defaultConfig The default config for the instance
+	 * @return {Axios} A new instance of Axios
+	 */
+	function createInstance(defaultConfig) {
+	  var context = new Axios(defaultConfig);
+	  var instance = bind(Axios.prototype.request, context);
+	
+	  // Copy axios.prototype to instance
+	  utils.extend(instance, Axios.prototype, context);
+	
+	  // Copy context to instance
+	  utils.extend(instance, context);
+	
+	  return instance;
+	}
+	
+	// Create the default instance to be exported
+	var axios = createInstance(defaults);
+	
+	// Expose Axios class to allow class inheritance
+	axios.Axios = Axios;
+	
+	// Factory for creating new instances
+	axios.create = function create(instanceConfig) {
+	  return createInstance(mergeConfig(axios.defaults, instanceConfig));
+	};
+	
+	// Expose Cancel & CancelToken
+	axios.Cancel = __webpack_require__(23);
+	axios.CancelToken = __webpack_require__(24);
+	axios.isCancel = __webpack_require__(9);
+	
+	// Expose all/spread
+	axios.all = function all(promises) {
+	  return Promise.all(promises);
+	};
+	axios.spread = __webpack_require__(25);
+	
+	// Expose isAxiosError
+	axios.isAxiosError = __webpack_require__(26);
+	
+	module.exports = axios;
+	
+	// Allow use of default import syntax in TypeScript
+	module.exports.default = axios;
 
-  function addToError(err, msg) {
-    var newErr;
-    if (err instanceof Error) {
-      var newErr = new Error(err.message, err.fileName, err.lineNumber);
-      if (isBrowser) {
-        newErr.message = err.message + '\n\t' + msg;
-        newErr.stack = err.stack;
-      }
-      else {
-        // node errors only look correct with the stack modified
-        newErr.message = err.message;
-        newErr.stack = err.stack + '\n\t' + msg;
-      }
-    }
-    else {
-      newErr = err + '\n\t' + msg;
-    }
-      
-    return newErr;
-  }
 
-  function __eval(source, debugName, context) {
-    try {
-      new Function(source).call(context);
-    }
-    catch(e) {
-      throw addToError(e, 'Evaluating ' + debugName);
-    }
-  }
+/***/ }),
+/* 2 */
+/***/ (function(module, exports, __webpack_require__) {
 
-  var baseURI;
-  // environent baseURI detection
-  if (typeof document != 'undefined' && document.getElementsByTagName) {
-    baseURI = document.baseURI;
+	'use strict';
+	
+	var bind = __webpack_require__(3);
+	
+	/*global toString:true*/
+	
+	// utils is a library of generic helper functions non-specific to axios
+	
+	var toString = Object.prototype.toString;
+	
+	/**
+	 * Determine if a value is an Array
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is an Array, otherwise false
+	 */
+	function isArray(val) {
+	  return toString.call(val) === '[object Array]';
+	}
+	
+	/**
+	 * Determine if a value is undefined
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if the value is undefined, otherwise false
+	 */
+	function isUndefined(val) {
+	  return typeof val === 'undefined';
+	}
+	
+	/**
+	 * Determine if a value is a Buffer
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a Buffer, otherwise false
+	 */
+	function isBuffer(val) {
+	  return val !== null && !isUndefined(val) && val.constructor !== null && !isUndefined(val.constructor)
+	    && typeof val.constructor.isBuffer === 'function' && val.constructor.isBuffer(val);
+	}
+	
+	/**
+	 * Determine if a value is an ArrayBuffer
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is an ArrayBuffer, otherwise false
+	 */
+	function isArrayBuffer(val) {
+	  return toString.call(val) === '[object ArrayBuffer]';
+	}
+	
+	/**
+	 * Determine if a value is a FormData
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is an FormData, otherwise false
+	 */
+	function isFormData(val) {
+	  return (typeof FormData !== 'undefined') && (val instanceof FormData);
+	}
+	
+	/**
+	 * Determine if a value is a view on an ArrayBuffer
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a view on an ArrayBuffer, otherwise false
+	 */
+	function isArrayBufferView(val) {
+	  var result;
+	  if ((typeof ArrayBuffer !== 'undefined') && (ArrayBuffer.isView)) {
+	    result = ArrayBuffer.isView(val);
+	  } else {
+	    result = (val) && (val.buffer) && (val.buffer instanceof ArrayBuffer);
+	  }
+	  return result;
+	}
+	
+	/**
+	 * Determine if a value is a String
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a String, otherwise false
+	 */
+	function isString(val) {
+	  return typeof val === 'string';
+	}
+	
+	/**
+	 * Determine if a value is a Number
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a Number, otherwise false
+	 */
+	function isNumber(val) {
+	  return typeof val === 'number';
+	}
+	
+	/**
+	 * Determine if a value is an Object
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is an Object, otherwise false
+	 */
+	function isObject(val) {
+	  return val !== null && typeof val === 'object';
+	}
+	
+	/**
+	 * Determine if a value is a plain Object
+	 *
+	 * @param {Object} val The value to test
+	 * @return {boolean} True if value is a plain Object, otherwise false
+	 */
+	function isPlainObject(val) {
+	  if (toString.call(val) !== '[object Object]') {
+	    return false;
+	  }
+	
+	  var prototype = Object.getPrototypeOf(val);
+	  return prototype === null || prototype === Object.prototype;
+	}
+	
+	/**
+	 * Determine if a value is a Date
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a Date, otherwise false
+	 */
+	function isDate(val) {
+	  return toString.call(val) === '[object Date]';
+	}
+	
+	/**
+	 * Determine if a value is a File
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a File, otherwise false
+	 */
+	function isFile(val) {
+	  return toString.call(val) === '[object File]';
+	}
+	
+	/**
+	 * Determine if a value is a Blob
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a Blob, otherwise false
+	 */
+	function isBlob(val) {
+	  return toString.call(val) === '[object Blob]';
+	}
+	
+	/**
+	 * Determine if a value is a Function
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a Function, otherwise false
+	 */
+	function isFunction(val) {
+	  return toString.call(val) === '[object Function]';
+	}
+	
+	/**
+	 * Determine if a value is a Stream
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a Stream, otherwise false
+	 */
+	function isStream(val) {
+	  return isObject(val) && isFunction(val.pipe);
+	}
+	
+	/**
+	 * Determine if a value is a URLSearchParams object
+	 *
+	 * @param {Object} val The value to test
+	 * @returns {boolean} True if value is a URLSearchParams object, otherwise false
+	 */
+	function isURLSearchParams(val) {
+	  return typeof URLSearchParams !== 'undefined' && val instanceof URLSearchParams;
+	}
+	
+	/**
+	 * Trim excess whitespace off the beginning and end of a string
+	 *
+	 * @param {String} str The String to trim
+	 * @returns {String} The String freed of excess whitespace
+	 */
+	function trim(str) {
+	  return str.replace(/^\s*/, '').replace(/\s*$/, '');
+	}
+	
+	/**
+	 * Determine if we're running in a standard browser environment
+	 *
+	 * This allows axios to run in a web worker, and react-native.
+	 * Both environments support XMLHttpRequest, but not fully standard globals.
+	 *
+	 * web workers:
+	 *  typeof window -> undefined
+	 *  typeof document -> undefined
+	 *
+	 * react-native:
+	 *  navigator.product -> 'ReactNative'
+	 * nativescript
+	 *  navigator.product -> 'NativeScript' or 'NS'
+	 */
+	function isStandardBrowserEnv() {
+	  if (typeof navigator !== 'undefined' && (navigator.product === 'ReactNative' ||
+	                                           navigator.product === 'NativeScript' ||
+	                                           navigator.product === 'NS')) {
+	    return false;
+	  }
+	  return (
+	    typeof window !== 'undefined' &&
+	    typeof document !== 'undefined'
+	  );
+	}
+	
+	/**
+	 * Iterate over an Array or an Object invoking a function for each item.
+	 *
+	 * If `obj` is an Array callback will be called passing
+	 * the value, index, and complete array for each item.
+	 *
+	 * If 'obj' is an Object callback will be called passing
+	 * the value, key, and complete object for each property.
+	 *
+	 * @param {Object|Array} obj The object to iterate
+	 * @param {Function} fn The callback to invoke for each item
+	 */
+	function forEach(obj, fn) {
+	  // Don't bother if no value provided
+	  if (obj === null || typeof obj === 'undefined') {
+	    return;
+	  }
+	
+	  // Force an array if not already something iterable
+	  if (typeof obj !== 'object') {
+	    /*eslint no-param-reassign:0*/
+	    obj = [obj];
+	  }
+	
+	  if (isArray(obj)) {
+	    // Iterate over array values
+	    for (var i = 0, l = obj.length; i < l; i++) {
+	      fn.call(null, obj[i], i, obj);
+	    }
+	  } else {
+	    // Iterate over object keys
+	    for (var key in obj) {
+	      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+	        fn.call(null, obj[key], key, obj);
+	      }
+	    }
+	  }
+	}
+	
+	/**
+	 * Accepts varargs expecting each argument to be an object, then
+	 * immutably merges the properties of each object and returns result.
+	 *
+	 * When multiple objects contain the same key the later object in
+	 * the arguments list will take precedence.
+	 *
+	 * Example:
+	 *
+	 * ```js
+	 * var result = merge({foo: 123}, {foo: 456});
+	 * console.log(result.foo); // outputs 456
+	 * ```
+	 *
+	 * @param {Object} obj1 Object to merge
+	 * @returns {Object} Result of all merge properties
+	 */
+	function merge(/* obj1, obj2, obj3, ... */) {
+	  var result = {};
+	  function assignValue(val, key) {
+	    if (isPlainObject(result[key]) && isPlainObject(val)) {
+	      result[key] = merge(result[key], val);
+	    } else if (isPlainObject(val)) {
+	      result[key] = merge({}, val);
+	    } else if (isArray(val)) {
+	      result[key] = val.slice();
+	    } else {
+	      result[key] = val;
+	    }
+	  }
+	
+	  for (var i = 0, l = arguments.length; i < l; i++) {
+	    forEach(arguments[i], assignValue);
+	  }
+	  return result;
+	}
+	
+	/**
+	 * Extends object a by mutably adding to it the properties of object b.
+	 *
+	 * @param {Object} a The object to be extended
+	 * @param {Object} b The object to copy properties from
+	 * @param {Object} thisArg The object to bind function to
+	 * @return {Object} The resulting value of object a
+	 */
+	function extend(a, b, thisArg) {
+	  forEach(b, function assignValue(val, key) {
+	    if (thisArg && typeof val === 'function') {
+	      a[key] = bind(val, thisArg);
+	    } else {
+	      a[key] = val;
+	    }
+	  });
+	  return a;
+	}
+	
+	/**
+	 * Remove byte order marker. This catches EF BB BF (the UTF-8 BOM)
+	 *
+	 * @param {string} content with BOM
+	 * @return {string} content value without BOM
+	 */
+	function stripBOM(content) {
+	  if (content.charCodeAt(0) === 0xFEFF) {
+	    content = content.slice(1);
+	  }
+	  return content;
+	}
+	
+	module.exports = {
+	  isArray: isArray,
+	  isArrayBuffer: isArrayBuffer,
+	  isBuffer: isBuffer,
+	  isFormData: isFormData,
+	  isArrayBufferView: isArrayBufferView,
+	  isString: isString,
+	  isNumber: isNumber,
+	  isObject: isObject,
+	  isPlainObject: isPlainObject,
+	  isUndefined: isUndefined,
+	  isDate: isDate,
+	  isFile: isFile,
+	  isBlob: isBlob,
+	  isFunction: isFunction,
+	  isStream: isStream,
+	  isURLSearchParams: isURLSearchParams,
+	  isStandardBrowserEnv: isStandardBrowserEnv,
+	  forEach: forEach,
+	  merge: merge,
+	  extend: extend,
+	  trim: trim,
+	  stripBOM: stripBOM
+	};
 
-    if (!baseURI) {
-      var bases = document.getElementsByTagName('base');
-      baseURI = bases[0] && bases[0].href || window.location.href;
-    }
 
-    // sanitize out the hash and querystring
-    baseURI = baseURI.split('#')[0].split('?')[0];
-    baseURI = baseURI.substr(0, baseURI.lastIndexOf('/') + 1);
-  }
-  else if (typeof process != 'undefined' && process.cwd) {
-    baseURI = 'file://' + (isWindows ? '/' : '') + process.cwd() + '/';
-    if (isWindows)
-      baseURI = baseURI.replace(/\\/g, '/');
-  }
-  else if (typeof location != 'undefined') {
-    baseURI = __global.location.href;
-  }
-  else {
-    throw new TypeError('No environment baseURI');
-  }
+/***/ }),
+/* 3 */
+/***/ (function(module, exports) {
 
-  var URL = __global.URLPolyfill || __global.URL;
-/*
-*********************************************************************************************
+	'use strict';
+	
+	module.exports = function bind(fn, thisArg) {
+	  return function wrap() {
+	    var args = new Array(arguments.length);
+	    for (var i = 0; i < args.length; i++) {
+	      args[i] = arguments[i];
+	    }
+	    return fn.apply(thisArg, args);
+	  };
+	};
 
-  Dynamic Module Loader Polyfill
 
-    - Implemented exactly to the former 2014-08-24 ES6 Specification Draft Rev 27, Section 15
-      http://wiki.ecmascript.org/doku.php?id=harmony:specification_drafts#august_24_2014_draft_rev_27
+/***/ }),
+/* 4 */
+/***/ (function(module, exports, __webpack_require__) {
 
-    - Functions are commented with their spec numbers, with spec differences commented.
+	'use strict';
+	
+	var utils = __webpack_require__(2);
+	var buildURL = __webpack_require__(5);
+	var InterceptorManager = __webpack_require__(6);
+	var dispatchRequest = __webpack_require__(7);
+	var mergeConfig = __webpack_require__(22);
+	
+	/**
+	 * Create a new instance of Axios
+	 *
+	 * @param {Object} instanceConfig The default config for the instance
+	 */
+	function Axios(instanceConfig) {
+	  this.defaults = instanceConfig;
+	  this.interceptors = {
+	    request: new InterceptorManager(),
+	    response: new InterceptorManager()
+	  };
+	}
+	
+	/**
+	 * Dispatch a request
+	 *
+	 * @param {Object} config The config specific for this request (merged with this.defaults)
+	 */
+	Axios.prototype.request = function request(config) {
+	  /*eslint no-param-reassign:0*/
+	  // Allow for axios('example/url'[, config]) a la fetch API
+	  if (typeof config === 'string') {
+	    config = arguments[1] || {};
+	    config.url = arguments[0];
+	  } else {
+	    config = config || {};
+	  }
+	
+	  config = mergeConfig(this.defaults, config);
+	
+	  // Set config.method
+	  if (config.method) {
+	    config.method = config.method.toLowerCase();
+	  } else if (this.defaults.method) {
+	    config.method = this.defaults.method.toLowerCase();
+	  } else {
+	    config.method = 'get';
+	  }
+	
+	  // Hook up interceptors middleware
+	  var chain = [dispatchRequest, undefined];
+	  var promise = Promise.resolve(config);
+	
+	  this.interceptors.request.forEach(function unshiftRequestInterceptors(interceptor) {
+	    chain.unshift(interceptor.fulfilled, interceptor.rejected);
+	  });
+	
+	  this.interceptors.response.forEach(function pushResponseInterceptors(interceptor) {
+	    chain.push(interceptor.fulfilled, interceptor.rejected);
+	  });
+	
+	  while (chain.length) {
+	    promise = promise.then(chain.shift(), chain.shift());
+	  }
+	
+	  return promise;
+	};
+	
+	Axios.prototype.getUri = function getUri(config) {
+	  config = mergeConfig(this.defaults, config);
+	  return buildURL(config.url, config.params, config.paramsSerializer).replace(/^\?/, '');
+	};
+	
+	// Provide aliases for supported request methods
+	utils.forEach(['delete', 'get', 'head', 'options'], function forEachMethodNoData(method) {
+	  /*eslint func-names:0*/
+	  Axios.prototype[method] = function(url, config) {
+	    return this.request(mergeConfig(config || {}, {
+	      method: method,
+	      url: url,
+	      data: (config || {}).data
+	    }));
+	  };
+	});
+	
+	utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
+	  /*eslint func-names:0*/
+	  Axios.prototype[method] = function(url, data, config) {
+	    return this.request(mergeConfig(config || {}, {
+	      method: method,
+	      url: url,
+	      data: data
+	    }));
+	  };
+	});
+	
+	module.exports = Axios;
 
-    - Spec bugs are commented in this code with links.
 
-    - Abstract functions have been combined where possible, and their associated functions
-      commented.
+/***/ }),
+/* 5 */
+/***/ (function(module, exports, __webpack_require__) {
 
-    - Realm implementation is entirely omitted.
+	'use strict';
+	
+	var utils = __webpack_require__(2);
+	
+	function encode(val) {
+	  return encodeURIComponent(val).
+	    replace(/%3A/gi, ':').
+	    replace(/%24/g, '$').
+	    replace(/%2C/gi, ',').
+	    replace(/%20/g, '+').
+	    replace(/%5B/gi, '[').
+	    replace(/%5D/gi, ']');
+	}
+	
+	/**
+	 * Build a URL by appending params to the end
+	 *
+	 * @param {string} url The base of the url (e.g., http://www.google.com)
+	 * @param {object} [params] The params to be appended
+	 * @returns {string} The formatted url
+	 */
+	module.exports = function buildURL(url, params, paramsSerializer) {
+	  /*eslint no-param-reassign:0*/
+	  if (!params) {
+	    return url;
+	  }
+	
+	  var serializedParams;
+	  if (paramsSerializer) {
+	    serializedParams = paramsSerializer(params);
+	  } else if (utils.isURLSearchParams(params)) {
+	    serializedParams = params.toString();
+	  } else {
+	    var parts = [];
+	
+	    utils.forEach(params, function serialize(val, key) {
+	      if (val === null || typeof val === 'undefined') {
+	        return;
+	      }
+	
+	      if (utils.isArray(val)) {
+	        key = key + '[]';
+	      } else {
+	        val = [val];
+	      }
+	
+	      utils.forEach(val, function parseValue(v) {
+	        if (utils.isDate(v)) {
+	          v = v.toISOString();
+	        } else if (utils.isObject(v)) {
+	          v = JSON.stringify(v);
+	        }
+	        parts.push(encode(key) + '=' + encode(v));
+	      });
+	    });
+	
+	    serializedParams = parts.join('&');
+	  }
+	
+	  if (serializedParams) {
+	    var hashmarkIndex = url.indexOf('#');
+	    if (hashmarkIndex !== -1) {
+	      url = url.slice(0, hashmarkIndex);
+	    }
+	
+	    url += (url.indexOf('?') === -1 ? '?' : '&') + serializedParams;
+	  }
+	
+	  return url;
+	};
 
-*********************************************************************************************
-*/
 
-function Module() {}
-// http://www.ecma-international.org/ecma-262/6.0/#sec-@@tostringtag
-defineProperty(Module.prototype, 'toString', {
-  value: function() {
-    return 'Module';
-  }
+/***/ }),
+/* 6 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var utils = __webpack_require__(2);
+	
+	function InterceptorManager() {
+	  this.handlers = [];
+	}
+	
+	/**
+	 * Add a new interceptor to the stack
+	 *
+	 * @param {Function} fulfilled The function to handle `then` for a `Promise`
+	 * @param {Function} rejected The function to handle `reject` for a `Promise`
+	 *
+	 * @return {Number} An ID used to remove interceptor later
+	 */
+	InterceptorManager.prototype.use = function use(fulfilled, rejected) {
+	  this.handlers.push({
+	    fulfilled: fulfilled,
+	    rejected: rejected
+	  });
+	  return this.handlers.length - 1;
+	};
+	
+	/**
+	 * Remove an interceptor from the stack
+	 *
+	 * @param {Number} id The ID that was returned by `use`
+	 */
+	InterceptorManager.prototype.eject = function eject(id) {
+	  if (this.handlers[id]) {
+	    this.handlers[id] = null;
+	  }
+	};
+	
+	/**
+	 * Iterate over all the registered interceptors
+	 *
+	 * This method is particularly useful for skipping over any
+	 * interceptors that may have become `null` calling `eject`.
+	 *
+	 * @param {Function} fn The function to call for each interceptor
+	 */
+	InterceptorManager.prototype.forEach = function forEach(fn) {
+	  utils.forEach(this.handlers, function forEachHandler(h) {
+	    if (h !== null) {
+	      fn(h);
+	    }
+	  });
+	};
+	
+	module.exports = InterceptorManager;
+
+
+/***/ }),
+/* 7 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var utils = __webpack_require__(2);
+	var transformData = __webpack_require__(8);
+	var isCancel = __webpack_require__(9);
+	var defaults = __webpack_require__(10);
+	
+	/**
+	 * Throws a `Cancel` if cancellation has been requested.
+	 */
+	function throwIfCancellationRequested(config) {
+	  if (config.cancelToken) {
+	    config.cancelToken.throwIfRequested();
+	  }
+	}
+	
+	/**
+	 * Dispatch a request to the server using the configured adapter.
+	 *
+	 * @param {object} config The config that is to be used for the request
+	 * @returns {Promise} The Promise to be fulfilled
+	 */
+	module.exports = function dispatchRequest(config) {
+	  throwIfCancellationRequested(config);
+	
+	  // Ensure headers exist
+	  config.headers = config.headers || {};
+	
+	  // Transform request data
+	  config.data = transformData(
+	    config.data,
+	    config.headers,
+	    config.transformRequest
+	  );
+	
+	  // Flatten headers
+	  config.headers = utils.merge(
+	    config.headers.common || {},
+	    config.headers[config.method] || {},
+	    config.headers
+	  );
+	
+	  utils.forEach(
+	    ['delete', 'get', 'head', 'post', 'put', 'patch', 'common'],
+	    function cleanHeaderConfig(method) {
+	      delete config.headers[method];
+	    }
+	  );
+	
+	  var adapter = config.adapter || defaults.adapter;
+	
+	  return adapter(config).then(function onAdapterResolution(response) {
+	    throwIfCancellationRequested(config);
+	
+	    // Transform response data
+	    response.data = transformData(
+	      response.data,
+	      response.headers,
+	      config.transformResponse
+	    );
+	
+	    return response;
+	  }, function onAdapterRejection(reason) {
+	    if (!isCancel(reason)) {
+	      throwIfCancellationRequested(config);
+	
+	      // Transform response data
+	      if (reason && reason.response) {
+	        reason.response.data = transformData(
+	          reason.response.data,
+	          reason.response.headers,
+	          config.transformResponse
+	        );
+	      }
+	    }
+	
+	    return Promise.reject(reason);
+	  });
+	};
+
+
+/***/ }),
+/* 8 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var utils = __webpack_require__(2);
+	
+	/**
+	 * Transform the data for a request or a response
+	 *
+	 * @param {Object|String} data The data to be transformed
+	 * @param {Array} headers The headers for the request or response
+	 * @param {Array|Function} fns A single function or Array of functions
+	 * @returns {*} The resulting transformed data
+	 */
+	module.exports = function transformData(data, headers, fns) {
+	  /*eslint no-param-reassign:0*/
+	  utils.forEach(fns, function transform(fn) {
+	    data = fn(data, headers);
+	  });
+	
+	  return data;
+	};
+
+
+/***/ }),
+/* 9 */
+/***/ (function(module, exports) {
+
+	'use strict';
+	
+	module.exports = function isCancel(value) {
+	  return !!(value && value.__CANCEL__);
+	};
+
+
+/***/ }),
+/* 10 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var utils = __webpack_require__(2);
+	var normalizeHeaderName = __webpack_require__(11);
+	
+	var DEFAULT_CONTENT_TYPE = {
+	  'Content-Type': 'application/x-www-form-urlencoded'
+	};
+	
+	function setContentTypeIfUnset(headers, value) {
+	  if (!utils.isUndefined(headers) && utils.isUndefined(headers['Content-Type'])) {
+	    headers['Content-Type'] = value;
+	  }
+	}
+	
+	function getDefaultAdapter() {
+	  var adapter;
+	  if (typeof XMLHttpRequest !== 'undefined') {
+	    // For browsers use XHR adapter
+	    adapter = __webpack_require__(12);
+	  } else if (typeof process !== 'undefined' && Object.prototype.toString.call(process) === '[object process]') {
+	    // For node use HTTP adapter
+	    adapter = __webpack_require__(12);
+	  }
+	  return adapter;
+	}
+	
+	var defaults = {
+	  adapter: getDefaultAdapter(),
+	
+	  transformRequest: [function transformRequest(data, headers) {
+	    normalizeHeaderName(headers, 'Accept');
+	    normalizeHeaderName(headers, 'Content-Type');
+	    if (utils.isFormData(data) ||
+	      utils.isArrayBuffer(data) ||
+	      utils.isBuffer(data) ||
+	      utils.isStream(data) ||
+	      utils.isFile(data) ||
+	      utils.isBlob(data)
+	    ) {
+	      return data;
+	    }
+	    if (utils.isArrayBufferView(data)) {
+	      return data.buffer;
+	    }
+	    if (utils.isURLSearchParams(data)) {
+	      setContentTypeIfUnset(headers, 'application/x-www-form-urlencoded;charset=utf-8');
+	      return data.toString();
+	    }
+	    if (utils.isObject(data)) {
+	      setContentTypeIfUnset(headers, 'application/json;charset=utf-8');
+	      return JSON.stringify(data);
+	    }
+	    return data;
+	  }],
+	
+	  transformResponse: [function transformResponse(data) {
+	    /*eslint no-param-reassign:0*/
+	    if (typeof data === 'string') {
+	      try {
+	        data = JSON.parse(data);
+	      } catch (e) { /* Ignore */ }
+	    }
+	    return data;
+	  }],
+	
+	  /**
+	   * A timeout in milliseconds to abort a request. If set to 0 (default) a
+	   * timeout is not created.
+	   */
+	  timeout: 0,
+	
+	  xsrfCookieName: 'XSRF-TOKEN',
+	  xsrfHeaderName: 'X-XSRF-TOKEN',
+	
+	  maxContentLength: -1,
+	  maxBodyLength: -1,
+	
+	  validateStatus: function validateStatus(status) {
+	    return status >= 200 && status < 300;
+	  }
+	};
+	
+	defaults.headers = {
+	  common: {
+	    'Accept': 'application/json, text/plain, */*'
+	  }
+	};
+	
+	utils.forEach(['delete', 'get', 'head'], function forEachMethodNoData(method) {
+	  defaults.headers[method] = {};
+	});
+	
+	utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
+	  defaults.headers[method] = utils.merge(DEFAULT_CONTENT_TYPE);
+	});
+	
+	module.exports = defaults;
+
+
+/***/ }),
+/* 11 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var utils = __webpack_require__(2);
+	
+	module.exports = function normalizeHeaderName(headers, normalizedName) {
+	  utils.forEach(headers, function processHeader(value, name) {
+	    if (name !== normalizedName && name.toUpperCase() === normalizedName.toUpperCase()) {
+	      headers[normalizedName] = value;
+	      delete headers[name];
+	    }
+	  });
+	};
+
+
+/***/ }),
+/* 12 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var utils = __webpack_require__(2);
+	var settle = __webpack_require__(13);
+	var cookies = __webpack_require__(16);
+	var buildURL = __webpack_require__(5);
+	var buildFullPath = __webpack_require__(17);
+	var parseHeaders = __webpack_require__(20);
+	var isURLSameOrigin = __webpack_require__(21);
+	var createError = __webpack_require__(14);
+	
+	module.exports = function xhrAdapter(config) {
+	  return new Promise(function dispatchXhrRequest(resolve, reject) {
+	    var requestData = config.data;
+	    var requestHeaders = config.headers;
+	
+	    if (utils.isFormData(requestData)) {
+	      delete requestHeaders['Content-Type']; // Let the browser set it
+	    }
+	
+	    var request = new XMLHttpRequest();
+	
+	    // HTTP basic authentication
+	    if (config.auth) {
+	      var username = config.auth.username || '';
+	      var password = config.auth.password ? unescape(encodeURIComponent(config.auth.password)) : '';
+	      requestHeaders.Authorization = 'Basic ' + btoa(username + ':' + password);
+	    }
+	
+	    var fullPath = buildFullPath(config.baseURL, config.url);
+	    request.open(config.method.toUpperCase(), buildURL(fullPath, config.params, config.paramsSerializer), true);
+	
+	    // Set the request timeout in MS
+	    request.timeout = config.timeout;
+	
+	    // Listen for ready state
+	    request.onreadystatechange = function handleLoad() {
+	      if (!request || request.readyState !== 4) {
+	        return;
+	      }
+	
+	      // The request errored out and we didn't get a response, this will be
+	      // handled by onerror instead
+	      // With one exception: request that using file: protocol, most browsers
+	      // will return status as 0 even though it's a successful request
+	      if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
+	        return;
+	      }
+	
+	      // Prepare the response
+	      var responseHeaders = 'getAllResponseHeaders' in request ? parseHeaders(request.getAllResponseHeaders()) : null;
+	      var responseData = !config.responseType || config.responseType === 'text' ? request.responseText : request.response;
+	      var response = {
+	        data: responseData,
+	        status: request.status,
+	        statusText: request.statusText,
+	        headers: responseHeaders,
+	        config: config,
+	        request: request
+	      };
+	
+	      settle(resolve, reject, response);
+	
+	      // Clean up request
+	      request = null;
+	    };
+	
+	    // Handle browser request cancellation (as opposed to a manual cancellation)
+	    request.onabort = function handleAbort() {
+	      if (!request) {
+	        return;
+	      }
+	
+	      reject(createError('Request aborted', config, 'ECONNABORTED', request));
+	
+	      // Clean up request
+	      request = null;
+	    };
+	
+	    // Handle low level network errors
+	    request.onerror = function handleError() {
+	      // Real errors are hidden from us by the browser
+	      // onerror should only fire if it's a network error
+	      reject(createError('Network Error', config, null, request));
+	
+	      // Clean up request
+	      request = null;
+	    };
+	
+	    // Handle timeout
+	    request.ontimeout = function handleTimeout() {
+	      var timeoutErrorMessage = 'timeout of ' + config.timeout + 'ms exceeded';
+	      if (config.timeoutErrorMessage) {
+	        timeoutErrorMessage = config.timeoutErrorMessage;
+	      }
+	      reject(createError(timeoutErrorMessage, config, 'ECONNABORTED',
+	        request));
+	
+	      // Clean up request
+	      request = null;
+	    };
+	
+	    // Add xsrf header
+	    // This is only done if running in a standard browser environment.
+	    // Specifically not if we're in a web worker, or react-native.
+	    if (utils.isStandardBrowserEnv()) {
+	      // Add xsrf header
+	      var xsrfValue = (config.withCredentials || isURLSameOrigin(fullPath)) && config.xsrfCookieName ?
+	        cookies.read(config.xsrfCookieName) :
+	        undefined;
+	
+	      if (xsrfValue) {
+	        requestHeaders[config.xsrfHeaderName] = xsrfValue;
+	      }
+	    }
+	
+	    // Add headers to the request
+	    if ('setRequestHeader' in request) {
+	      utils.forEach(requestHeaders, function setRequestHeader(val, key) {
+	        if (typeof requestData === 'undefined' && key.toLowerCase() === 'content-type') {
+	          // Remove Content-Type if data is undefined
+	          delete requestHeaders[key];
+	        } else {
+	          // Otherwise add header to the request
+	          request.setRequestHeader(key, val);
+	        }
+	      });
+	    }
+	
+	    // Add withCredentials to request if needed
+	    if (!utils.isUndefined(config.withCredentials)) {
+	      request.withCredentials = !!config.withCredentials;
+	    }
+	
+	    // Add responseType to request if needed
+	    if (config.responseType) {
+	      try {
+	        request.responseType = config.responseType;
+	      } catch (e) {
+	        // Expected DOMException thrown by browsers not compatible XMLHttpRequest Level 2.
+	        // But, this can be suppressed for 'json' type as it can be parsed by default 'transformResponse' function.
+	        if (config.responseType !== 'json') {
+	          throw e;
+	        }
+	      }
+	    }
+	
+	    // Handle progress if needed
+	    if (typeof config.onDownloadProgress === 'function') {
+	      request.addEventListener('progress', config.onDownloadProgress);
+	    }
+	
+	    // Not all browsers support upload events
+	    if (typeof config.onUploadProgress === 'function' && request.upload) {
+	      request.upload.addEventListener('progress', config.onUploadProgress);
+	    }
+	
+	    if (config.cancelToken) {
+	      // Handle cancellation
+	      config.cancelToken.promise.then(function onCanceled(cancel) {
+	        if (!request) {
+	          return;
+	        }
+	
+	        request.abort();
+	        reject(cancel);
+	        // Clean up request
+	        request = null;
+	      });
+	    }
+	
+	    if (!requestData) {
+	      requestData = null;
+	    }
+	
+	    // Send the request
+	    request.send(requestData);
+	  });
+	};
+
+
+/***/ }),
+/* 13 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var createError = __webpack_require__(14);
+	
+	/**
+	 * Resolve or reject a Promise based on response status.
+	 *
+	 * @param {Function} resolve A function that resolves the promise.
+	 * @param {Function} reject A function that rejects the promise.
+	 * @param {object} response The response.
+	 */
+	module.exports = function settle(resolve, reject, response) {
+	  var validateStatus = response.config.validateStatus;
+	  if (!response.status || !validateStatus || validateStatus(response.status)) {
+	    resolve(response);
+	  } else {
+	    reject(createError(
+	      'Request failed with status code ' + response.status,
+	      response.config,
+	      null,
+	      response.request,
+	      response
+	    ));
+	  }
+	};
+
+
+/***/ }),
+/* 14 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var enhanceError = __webpack_require__(15);
+	
+	/**
+	 * Create an Error with the specified message, config, error code, request and response.
+	 *
+	 * @param {string} message The error message.
+	 * @param {Object} config The config.
+	 * @param {string} [code] The error code (for example, 'ECONNABORTED').
+	 * @param {Object} [request] The request.
+	 * @param {Object} [response] The response.
+	 * @returns {Error} The created error.
+	 */
+	module.exports = function createError(message, config, code, request, response) {
+	  var error = new Error(message);
+	  return enhanceError(error, config, code, request, response);
+	};
+
+
+/***/ }),
+/* 15 */
+/***/ (function(module, exports) {
+
+	'use strict';
+	
+	/**
+	 * Update an Error with the specified config, error code, and response.
+	 *
+	 * @param {Error} error The error to update.
+	 * @param {Object} config The config.
+	 * @param {string} [code] The error code (for example, 'ECONNABORTED').
+	 * @param {Object} [request] The request.
+	 * @param {Object} [response] The response.
+	 * @returns {Error} The error.
+	 */
+	module.exports = function enhanceError(error, config, code, request, response) {
+	  error.config = config;
+	  if (code) {
+	    error.code = code;
+	  }
+	
+	  error.request = request;
+	  error.response = response;
+	  error.isAxiosError = true;
+	
+	  error.toJSON = function toJSON() {
+	    return {
+	      // Standard
+	      message: this.message,
+	      name: this.name,
+	      // Microsoft
+	      description: this.description,
+	      number: this.number,
+	      // Mozilla
+	      fileName: this.fileName,
+	      lineNumber: this.lineNumber,
+	      columnNumber: this.columnNumber,
+	      stack: this.stack,
+	      // Axios
+	      config: this.config,
+	      code: this.code
+	    };
+	  };
+	  return error;
+	};
+
+
+/***/ }),
+/* 16 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var utils = __webpack_require__(2);
+	
+	module.exports = (
+	  utils.isStandardBrowserEnv() ?
+	
+	  // Standard browser envs support document.cookie
+	    (function standardBrowserEnv() {
+	      return {
+	        write: function write(name, value, expires, path, domain, secure) {
+	          var cookie = [];
+	          cookie.push(name + '=' + encodeURIComponent(value));
+	
+	          if (utils.isNumber(expires)) {
+	            cookie.push('expires=' + new Date(expires).toGMTString());
+	          }
+	
+	          if (utils.isString(path)) {
+	            cookie.push('path=' + path);
+	          }
+	
+	          if (utils.isString(domain)) {
+	            cookie.push('domain=' + domain);
+	          }
+	
+	          if (secure === true) {
+	            cookie.push('secure');
+	          }
+	
+	          document.cookie = cookie.join('; ');
+	        },
+	
+	        read: function read(name) {
+	          var match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+	          return (match ? decodeURIComponent(match[3]) : null);
+	        },
+	
+	        remove: function remove(name) {
+	          this.write(name, '', Date.now() - 86400000);
+	        }
+	      };
+	    })() :
+	
+	  // Non standard browser env (web workers, react-native) lack needed support.
+	    (function nonStandardBrowserEnv() {
+	      return {
+	        write: function write() {},
+	        read: function read() { return null; },
+	        remove: function remove() {}
+	      };
+	    })()
+	);
+
+
+/***/ }),
+/* 17 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var isAbsoluteURL = __webpack_require__(18);
+	var combineURLs = __webpack_require__(19);
+	
+	/**
+	 * Creates a new URL by combining the baseURL with the requestedURL,
+	 * only when the requestedURL is not already an absolute URL.
+	 * If the requestURL is absolute, this function returns the requestedURL untouched.
+	 *
+	 * @param {string} baseURL The base URL
+	 * @param {string} requestedURL Absolute or relative URL to combine
+	 * @returns {string} The combined full path
+	 */
+	module.exports = function buildFullPath(baseURL, requestedURL) {
+	  if (baseURL && !isAbsoluteURL(requestedURL)) {
+	    return combineURLs(baseURL, requestedURL);
+	  }
+	  return requestedURL;
+	};
+
+
+/***/ }),
+/* 18 */
+/***/ (function(module, exports) {
+
+	'use strict';
+	
+	/**
+	 * Determines whether the specified URL is absolute
+	 *
+	 * @param {string} url The URL to test
+	 * @returns {boolean} True if the specified URL is absolute, otherwise false
+	 */
+	module.exports = function isAbsoluteURL(url) {
+	  // A URL is considered absolute if it begins with "<scheme>://" or "//" (protocol-relative URL).
+	  // RFC 3986 defines scheme name as a sequence of characters beginning with a letter and followed
+	  // by any combination of letters, digits, plus, period, or hyphen.
+	  return /^([a-z][a-z\d\+\-\.]*:)?\/\//i.test(url);
+	};
+
+
+/***/ }),
+/* 19 */
+/***/ (function(module, exports) {
+
+	'use strict';
+	
+	/**
+	 * Creates a new URL by combining the specified URLs
+	 *
+	 * @param {string} baseURL The base URL
+	 * @param {string} relativeURL The relative URL
+	 * @returns {string} The combined URL
+	 */
+	module.exports = function combineURLs(baseURL, relativeURL) {
+	  return relativeURL
+	    ? baseURL.replace(/\/+$/, '') + '/' + relativeURL.replace(/^\/+/, '')
+	    : baseURL;
+	};
+
+
+/***/ }),
+/* 20 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var utils = __webpack_require__(2);
+	
+	// Headers whose duplicates are ignored by node
+	// c.f. https://nodejs.org/api/http.html#http_message_headers
+	var ignoreDuplicateOf = [
+	  'age', 'authorization', 'content-length', 'content-type', 'etag',
+	  'expires', 'from', 'host', 'if-modified-since', 'if-unmodified-since',
+	  'last-modified', 'location', 'max-forwards', 'proxy-authorization',
+	  'referer', 'retry-after', 'user-agent'
+	];
+	
+	/**
+	 * Parse headers into an object
+	 *
+	 * ```
+	 * Date: Wed, 27 Aug 2014 08:58:49 GMT
+	 * Content-Type: application/json
+	 * Connection: keep-alive
+	 * Transfer-Encoding: chunked
+	 * ```
+	 *
+	 * @param {String} headers Headers needing to be parsed
+	 * @returns {Object} Headers parsed into an object
+	 */
+	module.exports = function parseHeaders(headers) {
+	  var parsed = {};
+	  var key;
+	  var val;
+	  var i;
+	
+	  if (!headers) { return parsed; }
+	
+	  utils.forEach(headers.split('\n'), function parser(line) {
+	    i = line.indexOf(':');
+	    key = utils.trim(line.substr(0, i)).toLowerCase();
+	    val = utils.trim(line.substr(i + 1));
+	
+	    if (key) {
+	      if (parsed[key] && ignoreDuplicateOf.indexOf(key) >= 0) {
+	        return;
+	      }
+	      if (key === 'set-cookie') {
+	        parsed[key] = (parsed[key] ? parsed[key] : []).concat([val]);
+	      } else {
+	        parsed[key] = parsed[key] ? parsed[key] + ', ' + val : val;
+	      }
+	    }
+	  });
+	
+	  return parsed;
+	};
+
+
+/***/ }),
+/* 21 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var utils = __webpack_require__(2);
+	
+	module.exports = (
+	  utils.isStandardBrowserEnv() ?
+	
+	  // Standard browser envs have full support of the APIs needed to test
+	  // whether the request URL is of the same origin as current location.
+	    (function standardBrowserEnv() {
+	      var msie = /(msie|trident)/i.test(navigator.userAgent);
+	      var urlParsingNode = document.createElement('a');
+	      var originURL;
+	
+	      /**
+	    * Parse a URL to discover it's components
+	    *
+	    * @param {String} url The URL to be parsed
+	    * @returns {Object}
+	    */
+	      function resolveURL(url) {
+	        var href = url;
+	
+	        if (msie) {
+	        // IE needs attribute set twice to normalize properties
+	          urlParsingNode.setAttribute('href', href);
+	          href = urlParsingNode.href;
+	        }
+	
+	        urlParsingNode.setAttribute('href', href);
+	
+	        // urlParsingNode provides the UrlUtils interface - http://url.spec.whatwg.org/#urlutils
+	        return {
+	          href: urlParsingNode.href,
+	          protocol: urlParsingNode.protocol ? urlParsingNode.protocol.replace(/:$/, '') : '',
+	          host: urlParsingNode.host,
+	          search: urlParsingNode.search ? urlParsingNode.search.replace(/^\?/, '') : '',
+	          hash: urlParsingNode.hash ? urlParsingNode.hash.replace(/^#/, '') : '',
+	          hostname: urlParsingNode.hostname,
+	          port: urlParsingNode.port,
+	          pathname: (urlParsingNode.pathname.charAt(0) === '/') ?
+	            urlParsingNode.pathname :
+	            '/' + urlParsingNode.pathname
+	        };
+	      }
+	
+	      originURL = resolveURL(window.location.href);
+	
+	      /**
+	    * Determine if a URL shares the same origin as the current location
+	    *
+	    * @param {String} requestURL The URL to test
+	    * @returns {boolean} True if URL shares the same origin, otherwise false
+	    */
+	      return function isURLSameOrigin(requestURL) {
+	        var parsed = (utils.isString(requestURL)) ? resolveURL(requestURL) : requestURL;
+	        return (parsed.protocol === originURL.protocol &&
+	            parsed.host === originURL.host);
+	      };
+	    })() :
+	
+	  // Non standard browser envs (web workers, react-native) lack needed support.
+	    (function nonStandardBrowserEnv() {
+	      return function isURLSameOrigin() {
+	        return true;
+	      };
+	    })()
+	);
+
+
+/***/ }),
+/* 22 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var utils = __webpack_require__(2);
+	
+	/**
+	 * Config-specific merge-function which creates a new config-object
+	 * by merging two configuration objects together.
+	 *
+	 * @param {Object} config1
+	 * @param {Object} config2
+	 * @returns {Object} New object resulting from merging config2 to config1
+	 */
+	module.exports = function mergeConfig(config1, config2) {
+	  // eslint-disable-next-line no-param-reassign
+	  config2 = config2 || {};
+	  var config = {};
+	
+	  var valueFromConfig2Keys = ['url', 'method', 'data'];
+	  var mergeDeepPropertiesKeys = ['headers', 'auth', 'proxy', 'params'];
+	  var defaultToConfig2Keys = [
+	    'baseURL', 'transformRequest', 'transformResponse', 'paramsSerializer',
+	    'timeout', 'timeoutMessage', 'withCredentials', 'adapter', 'responseType', 'xsrfCookieName',
+	    'xsrfHeaderName', 'onUploadProgress', 'onDownloadProgress', 'decompress',
+	    'maxContentLength', 'maxBodyLength', 'maxRedirects', 'transport', 'httpAgent',
+	    'httpsAgent', 'cancelToken', 'socketPath', 'responseEncoding'
+	  ];
+	  var directMergeKeys = ['validateStatus'];
+	
+	  function getMergedValue(target, source) {
+	    if (utils.isPlainObject(target) && utils.isPlainObject(source)) {
+	      return utils.merge(target, source);
+	    } else if (utils.isPlainObject(source)) {
+	      return utils.merge({}, source);
+	    } else if (utils.isArray(source)) {
+	      return source.slice();
+	    }
+	    return source;
+	  }
+	
+	  function mergeDeepProperties(prop) {
+	    if (!utils.isUndefined(config2[prop])) {
+	      config[prop] = getMergedValue(config1[prop], config2[prop]);
+	    } else if (!utils.isUndefined(config1[prop])) {
+	      config[prop] = getMergedValue(undefined, config1[prop]);
+	    }
+	  }
+	
+	  utils.forEach(valueFromConfig2Keys, function valueFromConfig2(prop) {
+	    if (!utils.isUndefined(config2[prop])) {
+	      config[prop] = getMergedValue(undefined, config2[prop]);
+	    }
+	  });
+	
+	  utils.forEach(mergeDeepPropertiesKeys, mergeDeepProperties);
+	
+	  utils.forEach(defaultToConfig2Keys, function defaultToConfig2(prop) {
+	    if (!utils.isUndefined(config2[prop])) {
+	      config[prop] = getMergedValue(undefined, config2[prop]);
+	    } else if (!utils.isUndefined(config1[prop])) {
+	      config[prop] = getMergedValue(undefined, config1[prop]);
+	    }
+	  });
+	
+	  utils.forEach(directMergeKeys, function merge(prop) {
+	    if (prop in config2) {
+	      config[prop] = getMergedValue(config1[prop], config2[prop]);
+	    } else if (prop in config1) {
+	      config[prop] = getMergedValue(undefined, config1[prop]);
+	    }
+	  });
+	
+	  var axiosKeys = valueFromConfig2Keys
+	    .concat(mergeDeepPropertiesKeys)
+	    .concat(defaultToConfig2Keys)
+	    .concat(directMergeKeys);
+	
+	  var otherKeys = Object
+	    .keys(config1)
+	    .concat(Object.keys(config2))
+	    .filter(function filterAxiosKeys(key) {
+	      return axiosKeys.indexOf(key) === -1;
+	    });
+	
+	  utils.forEach(otherKeys, mergeDeepProperties);
+	
+	  return config;
+	};
+
+
+/***/ }),
+/* 23 */
+/***/ (function(module, exports) {
+
+	'use strict';
+	
+	/**
+	 * A `Cancel` is an object that is thrown when an operation is canceled.
+	 *
+	 * @class
+	 * @param {string=} message The message.
+	 */
+	function Cancel(message) {
+	  this.message = message;
+	}
+	
+	Cancel.prototype.toString = function toString() {
+	  return 'Cancel' + (this.message ? ': ' + this.message : '');
+	};
+	
+	Cancel.prototype.__CANCEL__ = true;
+	
+	module.exports = Cancel;
+
+
+/***/ }),
+/* 24 */
+/***/ (function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var Cancel = __webpack_require__(23);
+	
+	/**
+	 * A `CancelToken` is an object that can be used to request cancellation of an operation.
+	 *
+	 * @class
+	 * @param {Function} executor The executor function.
+	 */
+	function CancelToken(executor) {
+	  if (typeof executor !== 'function') {
+	    throw new TypeError('executor must be a function.');
+	  }
+	
+	  var resolvePromise;
+	  this.promise = new Promise(function promiseExecutor(resolve) {
+	    resolvePromise = resolve;
+	  });
+	
+	  var token = this;
+	  executor(function cancel(message) {
+	    if (token.reason) {
+	      // Cancellation has already been requested
+	      return;
+	    }
+	
+	    token.reason = new Cancel(message);
+	    resolvePromise(token.reason);
+	  });
+	}
+	
+	/**
+	 * Throws a `Cancel` if cancellation has been requested.
+	 */
+	CancelToken.prototype.throwIfRequested = function throwIfRequested() {
+	  if (this.reason) {
+	    throw this.reason;
+	  }
+	};
+	
+	/**
+	 * Returns an object that contains a new `CancelToken` and a function that, when called,
+	 * cancels the `CancelToken`.
+	 */
+	CancelToken.source = function source() {
+	  var cancel;
+	  var token = new CancelToken(function executor(c) {
+	    cancel = c;
+	  });
+	  return {
+	    token: token,
+	    cancel: cancel
+	  };
+	};
+	
+	module.exports = CancelToken;
+
+
+/***/ }),
+/* 25 */
+/***/ (function(module, exports) {
+
+	'use strict';
+	
+	/**
+	 * Syntactic sugar for invoking a function and expanding an array for arguments.
+	 *
+	 * Common use case would be to use `Function.prototype.apply`.
+	 *
+	 *  ```js
+	 *  function f(x, y, z) {}
+	 *  var args = [1, 2, 3];
+	 *  f.apply(null, args);
+	 *  ```
+	 *
+	 * With `spread` this example can be re-written.
+	 *
+	 *  ```js
+	 *  spread(function(x, y, z) {})([1, 2, 3]);
+	 *  ```
+	 *
+	 * @param {Function} callback
+	 * @returns {Function}
+	 */
+	module.exports = function spread(callback) {
+	  return function wrap(arr) {
+	    return callback.apply(null, arr);
+	  };
+	};
+
+
+/***/ }),
+/* 26 */
+/***/ (function(module, exports) {
+
+	'use strict';
+	
+	/**
+	 * Determines whether the payload is an error thrown by Axios
+	 *
+	 * @param {*} payload The value to test
+	 * @returns {boolean} True if the payload is an error thrown by Axios, otherwise false
+	 */
+	module.exports = function isAxiosError(payload) {
+	  return (typeof payload === 'object') && (payload.isAxiosError === true);
+	};
+
+
+/***/ })
+/******/ ])
 });
-function Loader(options) {
-  this._loader = {
-    loaderObj: this,
-    loads: [],
-    modules: {},
-    importPromises: {},
-    moduleRecords: {}
-  };
-
-  // 26.3.3.6
-  defineProperty(this, 'global', {
-    get: function() {
-      return __global;
-    }
-  });
-
-  // 26.3.3.13 realm not implemented
-}
-
-(function() {
-
-// Some Helpers
-
-// logs a linkset snapshot for debugging
-/* function snapshot(loader) {
-  console.log('---Snapshot---');
-  for (var i = 0; i < loader.loads.length; i++) {
-    var load = loader.loads[i];
-    var linkSetLog = '  ' + load.name + ' (' + load.status + '): ';
-
-    for (var j = 0; j < load.linkSets.length; j++) {
-      linkSetLog += '{' + logloads(load.linkSets[j].loads) + '} ';
-    }
-    console.log(linkSetLog);
-  }
-  console.log('');
-}
-function logloads(loads) {
-  var log = '';
-  for (var k = 0; k < loads.length; k++)
-    log += loads[k].name + (k != loads.length - 1 ? ' ' : '');
-  return log;
-} */
-
-
-/* function checkInvariants() {
-  // see https://bugs.ecmascript.org/show_bug.cgi?id=2603#c1
-
-  var loads = System._loader.loads;
-  var linkSets = [];
-
-  for (var i = 0; i < loads.length; i++) {
-    var load = loads[i];
-    console.assert(load.status == 'loading' || load.status == 'loaded', 'Each load is loading or loaded');
-
-    for (var j = 0; j < load.linkSets.length; j++) {
-      var linkSet = load.linkSets[j];
-
-      for (var k = 0; k < linkSet.loads.length; k++)
-        console.assert(loads.indexOf(linkSet.loads[k]) != -1, 'linkSet loads are a subset of loader loads');
-
-      if (linkSets.indexOf(linkSet) == -1)
-        linkSets.push(linkSet);
-    }
-  }
-
-  for (var i = 0; i < loads.length; i++) {
-    var load = loads[i];
-    for (var j = 0; j < linkSets.length; j++) {
-      var linkSet = linkSets[j];
-
-      if (linkSet.loads.indexOf(load) != -1)
-        console.assert(load.linkSets.indexOf(linkSet) != -1, 'linkSet contains load -> load contains linkSet');
-
-      if (load.linkSets.indexOf(linkSet) != -1)
-        console.assert(linkSet.loads.indexOf(load) != -1, 'load contains linkSet -> linkSet contains load');
-    }
-  }
-
-  for (var i = 0; i < linkSets.length; i++) {
-    var linkSet = linkSets[i];
-    for (var j = 0; j < linkSet.loads.length; j++) {
-      var load = linkSet.loads[j];
-
-      for (var k = 0; k < load.dependencies.length; k++) {
-        var depName = load.dependencies[k].value;
-        var depLoad;
-        for (var l = 0; l < loads.length; l++) {
-          if (loads[l].name != depName)
-            continue;
-          depLoad = loads[l];
-          break;
-        }
-
-        // loading records are allowed not to have their dependencies yet
-        // if (load.status != 'loading')
-        //  console.assert(depLoad, 'depLoad found');
-
-        // console.assert(linkSet.loads.indexOf(depLoad) != -1, 'linkset contains all dependencies');
-      }
-    }
-  }
-} */
-
-  // 15.2.3 - Runtime Semantics: Loader State
-
-  // 15.2.3.11
-  function createLoaderLoad(object) {
-    return {
-      // modules is an object for ES5 implementation
-      modules: {},
-      loads: [],
-      loaderObj: object
-    };
-  }
-
-  // 15.2.3.2 Load Records and LoadRequest Objects
-
-  // 15.2.3.2.1
-  function createLoad(name) {
-    return {
-      status: 'loading',
-      name: name,
-      linkSets: [],
-      dependencies: [],
-      metadata: {}
-    };
-  }
-
-  // 15.2.3.2.2 createLoadRequestObject, absorbed into calling functions
-
-  // 15.2.4
-
-  // 15.2.4.1
-  function loadModule(loader, name, options) {
-    return new Promise(asyncStartLoadPartwayThrough({
-      step: options.address ? 'fetch' : 'locate',
-      loader: loader,
-      moduleName: name,
-      // allow metadata for import https://bugs.ecmascript.org/show_bug.cgi?id=3091
-      moduleMetadata: options && options.metadata || {},
-      moduleSource: options.source,
-      moduleAddress: options.address
-    }));
-  }
-
-  // 15.2.4.2
-  function requestLoad(loader, request, refererName, refererAddress) {
-    // 15.2.4.2.1 CallNormalize
-    return new Promise(function(resolve, reject) {
-      resolve(loader.loaderObj.normalize(request, refererName, refererAddress));
-    })
-    // 15.2.4.2.2 GetOrCreateLoad
-    .then(function(name) {
-      var load;
-      if (loader.modules[name]) {
-        load = createLoad(name);
-        load.status = 'linked';
-        // https://bugs.ecmascript.org/show_bug.cgi?id=2795
-        load.module = loader.modules[name];
-        return load;
-      }
-
-      for (var i = 0, l = loader.loads.length; i < l; i++) {
-        load = loader.loads[i];
-        if (load.name != name)
-          continue;
-        console.assert(load.status == 'loading' || load.status == 'loaded', 'loading or loaded');
-        return load;
-      }
-
-      load = createLoad(name);
-      loader.loads.push(load);
-
-      proceedToLocate(loader, load);
-
-      return load;
-    });
-  }
-
-  // 15.2.4.3
-  function proceedToLocate(loader, load) {
-    proceedToFetch(loader, load,
-      Promise.resolve()
-      // 15.2.4.3.1 CallLocate
-      .then(function() {
-        return loader.loaderObj.locate({ name: load.name, metadata: load.metadata });
-      })
-    );
-  }
-
-  // 15.2.4.4
-  function proceedToFetch(loader, load, p) {
-    proceedToTranslate(loader, load,
-      p
-      // 15.2.4.4.1 CallFetch
-      .then(function(address) {
-        // adjusted, see https://bugs.ecmascript.org/show_bug.cgi?id=2602
-        if (load.status != 'loading')
-          return;
-        load.address = address;
-
-        return loader.loaderObj.fetch({ name: load.name, metadata: load.metadata, address: address });
-      })
-    );
-  }
-
-  var anonCnt = 0;
-
-  // 15.2.4.5
-  function proceedToTranslate(loader, load, p) {
-    p
-    // 15.2.4.5.1 CallTranslate
-    .then(function(source) {
-      if (load.status != 'loading')
-        return;
-
-      return Promise.resolve(loader.loaderObj.translate({ name: load.name, metadata: load.metadata, address: load.address, source: source }))
-
-      // 15.2.4.5.2 CallInstantiate
-      .then(function(source) {
-        load.source = source;
-        return loader.loaderObj.instantiate({ name: load.name, metadata: load.metadata, address: load.address, source: source });
-      })
-
-      // 15.2.4.5.3 InstantiateSucceeded
-      .then(function(instantiateResult) {
-        if (instantiateResult === undefined) {
-          load.address = load.address || '<Anonymous Module ' + ++anonCnt + '>';
-
-          // instead of load.kind, use load.isDeclarative
-          load.isDeclarative = true;
-          return transpile.call(loader.loaderObj, load)
-          .then(function(transpiled) {
-            // Hijack System.register to set declare function
-            var curSystem = __global.System;
-            var curRegister = curSystem.register;
-            curSystem.register = function(name, deps, declare) {
-              if (typeof name != 'string') {
-                declare = deps;
-                deps = name;
-              }
-              // store the registered declaration as load.declare
-              // store the deps as load.deps
-              load.declare = declare;
-              load.depsList = deps;
-            }
-            // empty {} context is closest to undefined 'this' we can get
-            __eval(transpiled, load.address, {});
-            curSystem.register = curRegister;
-          });
-        }
-        else if (typeof instantiateResult == 'object') {
-          load.depsList = instantiateResult.deps || [];
-          load.execute = instantiateResult.execute;
-          load.isDeclarative = false;
-        }
-        else
-          throw TypeError('Invalid instantiate return value');
-      })
-      // 15.2.4.6 ProcessLoadDependencies
-      .then(function() {
-        load.dependencies = [];
-        var depsList = load.depsList;
-
-        var loadPromises = [];
-        for (var i = 0, l = depsList.length; i < l; i++) (function(request, index) {
-          loadPromises.push(
-            requestLoad(loader, request, load.name, load.address)
-
-            // 15.2.4.6.1 AddDependencyLoad (load is parentLoad)
-            .then(function(depLoad) {
-
-              // adjusted from spec to maintain dependency order
-              // this is due to the System.register internal implementation needs
-              load.dependencies[index] = {
-                key: request,
-                value: depLoad.name
-              };
-
-              if (depLoad.status != 'linked') {
-                var linkSets = load.linkSets.concat([]);
-                for (var i = 0, l = linkSets.length; i < l; i++)
-                  addLoadToLinkSet(linkSets[i], depLoad);
-              }
-
-              // console.log('AddDependencyLoad ' + depLoad.name + ' for ' + load.name);
-              // snapshot(loader);
-            })
-          );
-        })(depsList[i], i);
-
-        return Promise.all(loadPromises);
-      })
-
-      // 15.2.4.6.2 LoadSucceeded
-      .then(function() {
-        // console.log('LoadSucceeded ' + load.name);
-        // snapshot(loader);
-
-        console.assert(load.status == 'loading', 'is loading');
-
-        load.status = 'loaded';
-
-        var linkSets = load.linkSets.concat([]);
-        for (var i = 0, l = linkSets.length; i < l; i++)
-          updateLinkSetOnLoad(linkSets[i], load);
-      });
-    })
-    // 15.2.4.5.4 LoadFailed
-    ['catch'](function(exc) {
-      load.status = 'failed';
-      load.exception = exc;
-
-      var linkSets = load.linkSets.concat([]);
-      for (var i = 0, l = linkSets.length; i < l; i++) {
-        linkSetFailed(linkSets[i], load, exc);
-      }
-
-      console.assert(load.linkSets.length == 0, 'linkSets not removed');
-    });
-  }
-
-  // 15.2.4.7 PromiseOfStartLoadPartwayThrough absorbed into calling functions
-
-  // 15.2.4.7.1
-  function asyncStartLoadPartwayThrough(stepState) {
-    return function(resolve, reject) {
-      var loader = stepState.loader;
-      var name = stepState.moduleName;
-      var step = stepState.step;
-
-      if (loader.modules[name])
-        throw new TypeError('"' + name + '" already exists in the module table');
-
-      // adjusted to pick up existing loads
-      var existingLoad;
-      for (var i = 0, l = loader.loads.length; i < l; i++) {
-        if (loader.loads[i].name == name) {
-          existingLoad = loader.loads[i];
-
-          if(step == 'translate' && !existingLoad.source) {
-            existingLoad.address = stepState.moduleAddress;
-            proceedToTranslate(loader, existingLoad, Promise.resolve(stepState.moduleSource));
-          }
-
-          // a primary load -> use that existing linkset
-          if (existingLoad.linkSets.length)
-            return existingLoad.linkSets[0].done.then(function() {
-              resolve(existingLoad);
-            });
-        }
-      }
-
-      var load = existingLoad || createLoad(name);
-
-      load.metadata = stepState.moduleMetadata;
-
-      var linkSet = createLinkSet(loader, load);
-
-      loader.loads.push(load);
-
-      resolve(linkSet.done);
-
-      if (step == 'locate')
-        proceedToLocate(loader, load);
-
-      else if (step == 'fetch')
-        proceedToFetch(loader, load, Promise.resolve(stepState.moduleAddress));
-
-      else {
-        console.assert(step == 'translate', 'translate step');
-        load.address = stepState.moduleAddress;
-        proceedToTranslate(loader, load, Promise.resolve(stepState.moduleSource));
-      }
-    }
-  }
-
-  // Declarative linking functions run through alternative implementation:
-  // 15.2.5.1.1 CreateModuleLinkageRecord not implemented
-  // 15.2.5.1.2 LookupExport not implemented
-  // 15.2.5.1.3 LookupModuleDependency not implemented
-
-  // 15.2.5.2.1
-  function createLinkSet(loader, startingLoad) {
-    var linkSet = {
-      loader: loader,
-      loads: [],
-      startingLoad: startingLoad, // added see spec bug https://bugs.ecmascript.org/show_bug.cgi?id=2995
-      loadingCount: 0
-    };
-    linkSet.done = new Promise(function(resolve, reject) {
-      linkSet.resolve = resolve;
-      linkSet.reject = reject;
-    });
-    addLoadToLinkSet(linkSet, startingLoad);
-    return linkSet;
-  }
-  // 15.2.5.2.2
-  function addLoadToLinkSet(linkSet, load) {
-    if (load.status == 'failed')
-      return;
-
-    console.assert(load.status == 'loading' || load.status == 'loaded', 'loading or loaded on link set');
-
-    for (var i = 0, l = linkSet.loads.length; i < l; i++)
-      if (linkSet.loads[i] == load)
-        return;
-
-    linkSet.loads.push(load);
-    load.linkSets.push(linkSet);
-
-    // adjustment, see https://bugs.ecmascript.org/show_bug.cgi?id=2603
-    if (load.status != 'loaded') {
-      linkSet.loadingCount++;
-    }
-
-    var loader = linkSet.loader;
-
-    for (var i = 0, l = load.dependencies.length; i < l; i++) {
-      if (!load.dependencies[i])
-        continue;
-
-      var name = load.dependencies[i].value;
-
-      if (loader.modules[name])
-        continue;
-
-      for (var j = 0, d = loader.loads.length; j < d; j++) {
-        if (loader.loads[j].name != name)
-          continue;
-
-        addLoadToLinkSet(linkSet, loader.loads[j]);
-        break;
-      }
-    }
-    // console.log('add to linkset ' + load.name);
-    // snapshot(linkSet.loader);
-  }
-
-  // linking errors can be generic or load-specific
-  // this is necessary for debugging info
-  function doLink(linkSet) {
-    var error = false;
-    try {
-      link(linkSet, function(load, exc) {
-        linkSetFailed(linkSet, load, exc);
-        error = true;
-      });
-    }
-    catch(e) {
-      linkSetFailed(linkSet, null, e);
-      error = true;
-    }
-    return error;
-  }
-
-  // 15.2.5.2.3
-  function updateLinkSetOnLoad(linkSet, load) {
-    // console.log('update linkset on load ' + load.name);
-    // snapshot(linkSet.loader);
-
-    console.assert(load.status == 'loaded' || load.status == 'linked', 'loaded or linked');
-
-    linkSet.loadingCount--;
-
-    if (linkSet.loadingCount > 0)
-      return;
-
-    // adjusted for spec bug https://bugs.ecmascript.org/show_bug.cgi?id=2995
-    var startingLoad = linkSet.startingLoad;
-
-    // non-executing link variation for loader tracing
-    // on the server. Not in spec.
-    /***/
-    if (linkSet.loader.loaderObj.execute === false) {
-      var loads = [].concat(linkSet.loads);
-      for (var i = 0, l = loads.length; i < l; i++) {
-        var load = loads[i];
-        load.module = !load.isDeclarative ? {
-          module: _newModule({})
-        } : {
-          name: load.name,
-          module: _newModule({}),
-          evaluated: true
-        };
-        load.status = 'linked';
-        finishLoad(linkSet.loader, load);
-      }
-      return linkSet.resolve(startingLoad);
-    }
-    /***/
-
-    var abrupt = doLink(linkSet);
-
-    if (abrupt)
-      return;
-
-    console.assert(linkSet.loads.length == 0, 'loads cleared');
-
-    linkSet.resolve(startingLoad);
-  }
-
-  // 15.2.5.2.4
-  function linkSetFailed(linkSet, load, exc) {
-    var loader = linkSet.loader;
-    var requests;
-
-    checkError: 
-    if (load) {
-      if (linkSet.loads[0].name == load.name) {
-        exc = addToError(exc, 'Error loading ' + load.name);
-      }
-      else {
-        for (var i = 0; i < linkSet.loads.length; i++) {
-          var pLoad = linkSet.loads[i];
-          for (var j = 0; j < pLoad.dependencies.length; j++) {
-            var dep = pLoad.dependencies[j];
-            if (dep.value == load.name) {
-              exc = addToError(exc, 'Error loading ' + load.name + ' as "' + dep.key + '" from ' + pLoad.name);
-              break checkError;
-            }
-          }
-        }
-        exc = addToError(exc, 'Error loading ' + load.name + ' from ' + linkSet.loads[0].name);
-      }
-    }
-    else {
-      exc = addToError(exc, 'Error linking ' + linkSet.loads[0].name);
-    }
-
-
-    var loads = linkSet.loads.concat([]);
-    for (var i = 0, l = loads.length; i < l; i++) {
-      var load = loads[i];
-
-      // store all failed load records
-      loader.loaderObj.failed = loader.loaderObj.failed || [];
-      if (indexOf.call(loader.loaderObj.failed, load) == -1)
-        loader.loaderObj.failed.push(load);
-
-      var linkIndex = indexOf.call(load.linkSets, linkSet);
-      console.assert(linkIndex != -1, 'link not present');
-      load.linkSets.splice(linkIndex, 1);
-      if (load.linkSets.length == 0) {
-        var globalLoadsIndex = indexOf.call(linkSet.loader.loads, load);
-        if (globalLoadsIndex != -1)
-          linkSet.loader.loads.splice(globalLoadsIndex, 1);
-      }
-    }
-    linkSet.reject(exc);
-  }
-
-  // 15.2.5.2.5
-  function finishLoad(loader, load) {
-    // add to global trace if tracing
-    if (loader.loaderObj.trace) {
-      if (!loader.loaderObj.loads)
-        loader.loaderObj.loads = {};
-      var depMap = {};
-      load.dependencies.forEach(function(dep) {
-        depMap[dep.key] = dep.value;
-      });
-      loader.loaderObj.loads[load.name] = {
-        name: load.name,
-        deps: load.dependencies.map(function(dep){ return dep.key }),
-        depMap: depMap,
-        address: load.address,
-        metadata: load.metadata,
-        source: load.source,
-        kind: load.isDeclarative ? 'declarative' : 'dynamic'
-      };
-    }
-    // if not anonymous, add to the module table
-    if (load.name) {
-      console.assert(!loader.modules[load.name], 'load not in module table');
-      loader.modules[load.name] = load.module;
-    }
-    var loadIndex = indexOf.call(loader.loads, load);
-    if (loadIndex != -1)
-      loader.loads.splice(loadIndex, 1);
-    for (var i = 0, l = load.linkSets.length; i < l; i++) {
-      loadIndex = indexOf.call(load.linkSets[i].loads, load);
-      if (loadIndex != -1)
-        load.linkSets[i].loads.splice(loadIndex, 1);
-    }
-    load.linkSets.splice(0, load.linkSets.length);
-  }
-
-  function doDynamicExecute(linkSet, load, linkError) {
-    try {
-      var module = load.execute();
-    }
-    catch(e) {
-      linkError(load, e);
-      return;
-    }
-    if (!module || !(module instanceof Module))
-      linkError(load, new TypeError('Execution must define a Module instance'));
-    else
-      return module;
-  }
-
-  // 26.3 Loader
-
-  // 26.3.1.1
-  // defined at top
-
-  // importPromises adds ability to import a module twice without error - https://bugs.ecmascript.org/show_bug.cgi?id=2601
-  function createImportPromise(loader, name, promise) {
-    var importPromises = loader._loader.importPromises;
-    return importPromises[name] = promise.then(function(m) {
-      importPromises[name] = undefined;
-      return m;
-    }, function(e) {
-      importPromises[name] = undefined;
-      throw e;
-    });
-  }
-
-  Loader.prototype = {
-    // 26.3.3.1
-    constructor: Loader,
-    // 26.3.3.2
-    define: function(name, source, options) {
-      // check if already defined
-      if (this._loader.importPromises[name])
-        throw new TypeError('Module is already loading.');
-      return createImportPromise(this, name, new Promise(asyncStartLoadPartwayThrough({
-        step: 'translate',
-        loader: this._loader,
-        moduleName: name,
-        moduleMetadata: options && options.metadata || {},
-        moduleSource: source,
-        moduleAddress: options && options.address
-      })));
-    },
-    // 26.3.3.3
-    'delete': function(name) {
-      var loader = this._loader;
-      delete loader.importPromises[name];
-      delete loader.moduleRecords[name];
-      return loader.modules[name] ? delete loader.modules[name] : false;
-    },
-    // 26.3.3.4 entries not implemented
-    // 26.3.3.5
-    get: function(key) {
-      if (!this._loader.modules[key])
-        return;
-      doEnsureEvaluated(this._loader.modules[key], [], this);
-      return this._loader.modules[key].module;
-    },
-    // 26.3.3.7
-    has: function(name) {
-      return !!this._loader.modules[name];
-    },
-    // 26.3.3.8
-    'import': function(name, parentName, parentAddress) {
-      if (typeof parentName == 'object')
-        parentName = parentName.name;
-
-      // run normalize first
-      var loaderObj = this;
-
-      // added, see https://bugs.ecmascript.org/show_bug.cgi?id=2659
-      return Promise.resolve(loaderObj.normalize(name, parentName))
-      .then(function(name) {
-        var loader = loaderObj._loader;
-
-        if (loader.modules[name]) {
-          doEnsureEvaluated(loader.modules[name], [], loader._loader);
-          return loader.modules[name].module;
-        }
-
-        return loader.importPromises[name] || createImportPromise(loaderObj, name,
-          loadModule(loader, name, {})
-          .then(function(load) {
-            delete loader.importPromises[name];
-            return evaluateLoadedModule(loader, load);
-          }));
-      });
-    },
-    // 26.3.3.9 keys not implemented
-    // 26.3.3.10
-    load: function(name, options) {
-      var loader = this._loader;
-      if (loader.modules[name]) {
-        doEnsureEvaluated(loader.modules[name], [], loader);
-        return Promise.resolve(loader.modules[name].module);
-      }
-      return loader.importPromises[name] || createImportPromise(this, name,
-        loadModule(loader, name, {})
-        .then(function(load) {
-          delete loader.importPromises[name];
-          return evaluateLoadedModule(loader, load);
-        }));
-    },
-    // 26.3.3.11
-    module: function(source, options) {
-      var load = createLoad();
-      load.address = options && options.address;
-      var linkSet = createLinkSet(this._loader, load);
-      var sourcePromise = Promise.resolve(source);
-      var loader = this._loader;
-      var p = linkSet.done.then(function() {
-        return evaluateLoadedModule(loader, load);
-      });
-      proceedToTranslate(loader, load, sourcePromise);
-      return p;
-    },
-    // 26.3.3.12
-    newModule: function (obj) {
-      if (typeof obj != 'object')
-        throw new TypeError('Expected object');
-
-      // we do this to be able to tell if a module is a module privately in ES5
-      // by doing m instanceof Module
-      var m = new Module();
-
-      var pNames;
-      if (Object.getOwnPropertyNames && obj != null) {
-        pNames = Object.getOwnPropertyNames(obj);
-      }
-      else {
-        pNames = [];
-        for (var key in obj)
-          pNames.push(key);
-      }
-
-      for (var i = 0; i < pNames.length; i++) (function(key) {
-        defineProperty(m, key, {
-          configurable: false,
-          enumerable: true,
-          get: function () {
-            return obj[key];
-          }
-        });
-      })(pNames[i]);
-
-      if (Object.preventExtensions)
-        Object.preventExtensions(m);
-
-      return m;
-    },
-    // 26.3.3.14
-    set: function(name, module) {
-      if (!(module instanceof Module))
-        throw new TypeError('Loader.set(' + name + ', module) must be a module');
-      this._loader.modules[name] = {
-        module: module
-      };
-    },
-    // 26.3.3.15 values not implemented
-    // 26.3.3.16 @@iterator not implemented
-    // 26.3.3.17 @@toStringTag not implemented
-
-    // 26.3.3.18.1
-    normalize: function(name, referrerName, referrerAddress) {
-      return name;
-    },
-    // 26.3.3.18.2
-    locate: function(load) {
-      return load.name;
-    },
-    // 26.3.3.18.3
-    fetch: function(load) {
-    },
-    // 26.3.3.18.4
-    translate: function(load) {
-      return load.source;
-    },
-    // 26.3.3.18.5
-    instantiate: function(load) {
-    }
-  };
-
-  var _newModule = Loader.prototype.newModule;
-/*
- * ES6 Module Declarative Linking Code - Dev Build Only
- */
-  function link(linkSet, linkError) {
-
-    var loader = linkSet.loader;
-
-    if (!linkSet.loads.length)
-      return;
-
-    var loads = linkSet.loads.concat([]);
-
-    for (var i = 0; i < loads.length; i++) {
-      var load = loads[i];
-
-      var module = doDynamicExecute(linkSet, load, linkError);
-      if (!module)
-        return;
-      load.module = {
-        name: load.name,
-        module: module
-      };
-      load.status = 'linked';
-
-      finishLoad(loader, load);
-    }
-  }
-
-  function evaluateLoadedModule(loader, load) {
-    console.assert(load.status == 'linked', 'is linked ' + load.name);
-    return load.module.module;
-  }
-
-  function doEnsureEvaluated() {}
-
-  function transpile() {
-    throw new TypeError('ES6 transpilation is only provided in the dev module loader build.');
-  }
-})();/*
-*********************************************************************************************
-
-  System Loader Implementation
-
-    - Implemented to https://github.com/jorendorff/js-loaders/blob/master/browser-loader.js
-
-    - <script type="module"> supported
-
-*********************************************************************************************
-*/
-
-var System;
-
-function SystemLoader() {
-  Loader.call(this);
-  this.paths = {};
-}
-
-// NB no specification provided for System.paths, used ideas discussed in https://github.com/jorendorff/js-loaders/issues/25
-function applyPaths(paths, name) {
-  // most specific (most number of slashes in path) match wins
-  var pathMatch = '', wildcard, maxSlashCount = 0;
-
-  // check to see if we have a paths entry
-  for (var p in paths) {
-    var pathParts = p.split('*');
-    if (pathParts.length > 2)
-      throw new TypeError('Only one wildcard in a path is permitted');
-
-    // exact path match
-    if (pathParts.length == 1) {
-      if (name == p) {
-        pathMatch = p;
-        break;
-      }
-    }
-    // wildcard path match
-    else {
-      var slashCount = p.split('/').length;
-      if (slashCount >= maxSlashCount &&
-          name.substr(0, pathParts[0].length) == pathParts[0] &&
-          name.substr(name.length - pathParts[1].length) == pathParts[1]) {
-            maxSlashCount = slashCount;
-            pathMatch = p;
-            wildcard = name.substr(pathParts[0].length, name.length - pathParts[1].length - pathParts[0].length);
-          }
-    }
-  }
-
-  var outPath = paths[pathMatch] || name;
-  if (typeof wildcard == 'string')
-    outPath = outPath.replace('*', wildcard);
-
-  return outPath;
-}
-
-// inline Object.create-style class extension
-function LoaderProto() {}
-LoaderProto.prototype = Loader.prototype;
-SystemLoader.prototype = new LoaderProto();
-  var fetchTextFromURL;
-  if (typeof XMLHttpRequest != 'undefined') {
-    fetchTextFromURL = function(url, fulfill, reject) {
-      var xhr = new XMLHttpRequest();
-      var sameDomain = true;
-      var doTimeout = false;
-      if (!('withCredentials' in xhr)) {
-        // check if same domain
-        var domainCheck = /^(\w+:)?\/\/([^\/]+)/.exec(url);
-        if (domainCheck) {
-          sameDomain = domainCheck[2] === window.location.host;
-          if (domainCheck[1])
-            sameDomain &= domainCheck[1] === window.location.protocol;
-        }
-      }
-      if (!sameDomain && typeof XDomainRequest != 'undefined') {
-        xhr = new XDomainRequest();
-        xhr.onload = load;
-        xhr.onerror = error;
-        xhr.ontimeout = error;
-        xhr.onprogress = function() {};
-        xhr.timeout = 0;
-        doTimeout = true;
-      }
-      function load() {
-        fulfill(xhr.responseText);
-      }
-      function error() {
-        reject(new Error('XHR error' + (xhr.status ? ' (' + xhr.status + (xhr.statusText ? ' ' + xhr.statusText  : '') + ')' : '') + ' loading ' + url));
-      }
-
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4) {
-          if (xhr.status === 200 || (xhr.status == 0 && xhr.responseText)) {
-            load();
-          } else {
-            error();
-          }
-        }
-      };
-      xhr.open("GET", url, true);
-
-      if (xhr.setRequestHeader)
-        xhr.setRequestHeader('Accept', 'application/x-es-module */*');
-
-      if (doTimeout)
-        setTimeout(function() {
-          xhr.send();
-        }, 0);
-
-      xhr.send(null);
-    };
-  }
-  else if (typeof require != 'undefined') {
-    var fs;
-    fetchTextFromURL = function(url, fulfill, reject) {
-      if (url.substr(0, 8) != 'file:///')
-        throw new Error('Unable to fetch "' + url + '". Only file URLs of the form file:/// allowed running in Node.');
-      fs = fs || require('fs');
-      if (isWindows)
-        url = url.replace(/\//g, '\\').substr(8);
-      else
-        url = url.substr(7);
-      return fs.readFile(url, function(err, data) {
-        if (err) {
-          return reject(err);
-        }
-        else {
-          // Strip Byte Order Mark out if it's the leading char
-          var dataString = data + '';
-          if (dataString[0] === '\ufeff')
-            dataString = dataString.substr(1);
-
-          fulfill(dataString);
-        }
-      });
-    };
-  }
-  else {
-    throw new TypeError('No environment fetch API available.');
-  }
-
-  SystemLoader.prototype.fetch = function(load) {
-    return new Promise(function(resolve, reject) {
-      fetchTextFromURL(load.address, resolve, reject);
-    });
-  };
-/*
- * Traceur, Babel and TypeScript transpile hook for Loader
- */
-var transpile = (function() {
-
-  // use Traceur by default
-  Loader.prototype.transpiler = 'traceur';
-
-  function transpile(load) {
-    var self = this;
-
-    return Promise.resolve(__global[self.transpiler == 'typescript' ? 'ts' : self.transpiler]
-        || (self.pluginLoader || self)['import'](self.transpiler))
-    .then(function(transpiler) {
-      if (transpiler.__useDefault)
-        transpiler = transpiler['default'];
-
-      var transpileFunction;
-      if (transpiler.Compiler)
-        transpileFunction = traceurTranspile;
-      else if (transpiler.createLanguageService)
-        transpileFunction = typescriptTranspile;
-      else
-        transpileFunction = babelTranspile;
-
-      // note __moduleName will be part of the transformer meta in future when we have the spec for this
-      return '(function(__moduleName){' + transpileFunction.call(self, load, transpiler) + '\n})("' + load.name + '");\n//# sourceURL=' + load.address + '!transpiled';
-    });
-  };
-
-  function traceurTranspile(load, traceur) {
-    var options = this.traceurOptions || {};
-    options.modules = 'instantiate';
-    options.script = false;
-    if (options.sourceMaps === undefined)
-      options.sourceMaps = 'inline';
-    options.filename = load.address;
-    options.inputSourceMap = load.metadata.sourceMap;
-    options.moduleName = false;
-
-    var compiler = new traceur.Compiler(options);
-
-    return doTraceurCompile(load.source, compiler, options.filename);
-  }
-  function doTraceurCompile(source, compiler, filename) {
-    try {
-      return compiler.compile(source, filename);
-    }
-    catch(e) {
-      // traceur throws an error array
-      throw e[0];
-    }
-  }
-
-  function babelTranspile(load, babel) {
-    var options = this.babelOptions || {};
-    options.modules = 'system';
-    if (options.sourceMap === undefined)
-      options.sourceMap = 'inline';
-    options.inputSourceMap = load.metadata.sourceMap;
-    options.filename = load.address;
-    options.code = true;
-    options.ast = false;
-
-    return babel.transform(load.source, options).code;
-  }
-
-  function typescriptTranspile(load, ts) {
-    var options = this.typescriptOptions || {};
-    options.target = options.target || ts.ScriptTarget.ES5;
-    if (options.sourceMap === undefined)
-      options.sourceMap = true;
-    if (options.sourceMap)
-      options.inlineSourceMap = true;
-
-    options.module = ts.ModuleKind.System;
-
-    return ts.transpile(load.source, options, load.address);
-  }
-
-  return transpile;
-})();
-// we define a __exec for globally-scoped execution
-// used by module format implementations
-var __exec;
-
-(function() {
-
-  // System clobbering protection (mostly for Traceur)
-  var curSystem;
-  function preExec(loader) {
-    curSystem = __global.System;
-    __global.System = loader;
-  }
-  function postExec() {
-    __global.System = curSystem;
-  }
-
-  var hasBtoa = typeof btoa != 'undefined';
-
-  function getSource(load) {
-    var lastLineIndex = load.source.lastIndexOf('\n');
-
-    return load.source
-        // adds the sourceURL comment if not already present
-        + (load.source.substr(lastLineIndex, 15) != '\n//# sourceURL=' 
-          ? '\n//# sourceURL=' + load.address + (load.metadata.sourceMap ? '!transpiled' : '') : '')
-        // add sourceMappingURL if load.metadata.sourceMap is set
-        + (load.metadata.sourceMap && hasBtoa && 
-          '\n//# sourceMappingURL=data:application/json;base64,' + btoa(unescape(encodeURIComponent(load.metadata.sourceMap))) || '')
-  }
-
-  // Web Worker and Chrome Extensions use original ESML eval
-  // this may lead to some global module execution differences (eg var not defining onto global)
-  if (isWorker || isBrowser && window.chrome && window.chrome.extension) {
-    __exec = function(load) {
-      if (load.metadata.integrity)
-        throw new Error('Subresource integrity checking is not supported in Web Workers or Chrome Extensions.');
-      try {
-        preExec(this);
-        new Function(getSource(load)).call(__global);
-        postExec();
-      }
-      catch(e) {
-        throw addToError(e, 'Evaluating ' + load.address);
-      }
-    };
-  }
-
-  // use script injection eval to get identical global script behaviour
-  else if (typeof document != 'undefined') {
-    var head;
-
-    var scripts = document.getElementsByTagName('script');
-    $__curScript = scripts[scripts.length - 1];
-
-    __exec = function(load) {
-      if (!head)
-        head = document.head || document.body || document.documentElement;
-
-      var script = document.createElement('script');
-      script.text = getSource(load);
-      var onerror = window.onerror;
-      var e;
-      window.onerror = function(_e) {
-        e = addToError(_e, 'Evaluating ' + load.address);
-      }
-      preExec(this);
-
-      if (load.metadata.integrity)
-        script.setAttribute('integrity', load.metadata.integrity);
-      if (load.metadata.nonce)
-        script.setAttribute('nonce', load.metadata.nonce);
-
-      head.appendChild(script);
-      head.removeChild(script);
-      postExec();
-      window.onerror = onerror;
-      if (e)
-        throw e;
-    }
-  }
-  else {
-    // global scoped eval for node
-    var vmModule = 'vm';
-    var vm = require(vmModule);
-    __exec = function(load) {
-      if (load.metadata.integrity)
-        throw new Error('Subresource integrity checking is unavailable in Node.');
-      try {
-        preExec(this);
-        vm.runInThisContext(getSource(load));
-        postExec();
-      }
-      catch(e) {
-        throw addToError(e.toString(), 'Evaluating ' + load.address);
-      }
-    };
-  }
-
-})();// SystemJS Loader Class and Extension helpers
-
-function SystemJSLoader() {
-  SystemLoader.call(this);
-
-  systemJSConstructor.call(this);
-}
-
-// inline Object.create-style class extension
-function SystemProto() {};
-SystemProto.prototype = SystemLoader.prototype;
-SystemJSLoader.prototype = new SystemProto();
-
-var systemJSConstructor;
-
-function hook(name, hook) {
-  SystemJSLoader.prototype[name] = hook(SystemJSLoader.prototype[name]);
-}
-function hookConstructor(hook) {
-  systemJSConstructor = hook(systemJSConstructor || function() {});
-}
-
-function dedupe(deps) {
-  var newDeps = [];
-  for (var i = 0, l = deps.length; i < l; i++)
-    if (indexOf.call(newDeps, deps[i]) == -1)
-      newDeps.push(deps[i])
-  return newDeps;
-}
-
-function group(deps) {
-  var names = [];
-  var indices = [];
-  for (var i = 0, l = deps.length; i < l; i++) {
-    var index = indexOf.call(names, deps[i]);
-    if (index === -1) {
-      names.push(deps[i]);
-      indices.push([i]);
-    }
-    else {
-      indices[index].push(i);
-    }
-  }
-  return { names: names, indices: indices };
-}
-
-var getOwnPropertyDescriptor = true;
-try {
-  Object.getOwnPropertyDescriptor({ a: 0 }, 'a');
-}
-catch(e) {
-  getOwnPropertyDescriptor = false;
-}
-
-// converts any module.exports object into an object ready for System.newModule
-function getESModule(exports) {
-  var esModule = {};
-  // don't trigger getters/setters in environments that support them
-  if (typeof exports == 'object' || typeof exports == 'function') {
-    if (getOwnPropertyDescriptor) {
-      var d;
-      for (var p in exports)
-        if (d = Object.getOwnPropertyDescriptor(exports, p))
-          defineProperty(esModule, p, d);
-    }
-    else {
-      var hasOwnProperty = exports && exports.hasOwnProperty;
-      for (var p in exports) {
-        if (!hasOwnProperty || exports.hasOwnProperty(p))
-          esModule[p] = exports[p];
-      }
-    }
-  }
-  esModule['default'] = exports;
-  defineProperty(esModule, '__useDefault', {
-    value: true
-  });
-  return esModule;
-}
-
-function extend(a, b, prepend) {
-  for (var p in b) {
-    if (!prepend || !(p in a))
-      a[p] = b[p];
-  }
-  return a;
-}
-
-// meta first-level extends where:
-// array + array appends
-// object + object extends
-// other properties replace
-function extendMeta(a, b, prepend) {
-  for (var p in b) {
-    var val = b[p];
-    if (!(p in a))
-      a[p] = val;
-    else if (val instanceof Array && a[p] instanceof Array)
-      a[p] = [].concat(prepend ? val : a[p]).concat(prepend ? a[p] : val);
-    else if (typeof val == 'object' && typeof a[p] == 'object')
-      a[p] = extend(extend({}, a[p]), val, prepend);
-    else if (!prepend)
-      a[p] = val;
-  }
-}var absURLRegEx = /^[^\/]+:\/\//;
-
-function readMemberExpression(p, value) {
-  var pParts = p.split('.');
-  while (pParts.length)
-    value = value[pParts.shift()];
-  return value;
-}
-
-var baseURLCache = {};
-function getBaseURLObj() {
-  if (baseURLCache[this.baseURL])
-    return baseURLCache[this.baseURL];
-
-  // normalize baseURL if not already
-  if (this.baseURL[this.baseURL.length - 1] != '/')
-    this.baseURL += '/';
-
-  var baseURL = new URL(this.baseURL, baseURI);
-
-  this.baseURL = baseURL.href;
-
-  return (baseURLCache[this.baseURL] = baseURL);
-}
-
-var baseURIObj = new URL(baseURI);
-
-(function() {
-
-hookConstructor(function(constructor) {
-  return function() {
-    constructor.call(this);
-
-    // support baseURL
-    this.baseURL = baseURI.substr(0, baseURI.lastIndexOf('/') + 1);
-
-    // support the empty module, as a concept
-    this.set('@empty', this.newModule({}));
-  };
-});
-
-/*
-  Normalization
-
-  If a name is relative, we apply URL normalization to the page
-  If a name is an absolute URL, we leave it as-is
-
-  Plain names (neither of the above) run through the map and package
-  normalization phases (applying before and after this one).
-
-  The paths normalization phase applies last (paths extension), which
-  defines the `normalizeSync` function and normalizes everything into
-  a URL.
-
-  The final normalization 
- */
-hook('normalize', function() {
-  return function(name, parentName) {
-    // relative URL-normalization
-    if (name[0] == '.' || name[0] == '/')
-      return new URL(name, parentName || baseURIObj).href;
-    return name;
-  };
-});
-
-/*
-  __useDefault
-  
-  When a module object looks like:
-  newModule(
-    __useDefault: true,
-    default: 'some-module'
-  })
-
-  Then importing that module provides the 'some-module'
-  result directly instead of the full module.
-
-  Useful for eg module.exports = function() {}
-*/
-hook('import', function(systemImport) {
-  return function(name, parentName, parentAddress) {
-    return systemImport.call(this, name, parentName, parentAddress).then(function(module) {
-      return module.__useDefault ? module['default'] : module;
-    });
-  };
-});
-
-/*
- Extend config merging one deep only
-
-  loader.config({
-    some: 'random',
-    config: 'here',
-    deep: {
-      config: { too: 'too' }
-    }
-  });
-
-  <=>
-
-  loader.some = 'random';
-  loader.config = 'here'
-  loader.deep = loader.deep || {};
-  loader.deep.config = { too: 'too' };
-
-
-  Normalizes meta and package configs allowing for:
-
-  System.config({
-    meta: {
-      './index.js': {}
-    }
-  });
-
-  To become
-
-  System.meta['https://thissite.com/index.js'] = {};
-
-  For easy normalization canonicalization with latest URL support.
-
-*/
-var packageProperties = ['main', 'format', 'defaultExtension', 'meta', 'map', 'basePath'];
-SystemJSLoader.prototype.config = function(cfg) {
-
-  // always configure baseURL first
-  if (cfg.baseURL) {
-    var hasConfig = false;
-    function checkHasConfig(obj) {
-      for (var p in obj)
-        return true;
-    }
-    if (checkHasConfig(this.packages) || checkHasConfig(this.meta) || checkHasConfig(this.depCache) || checkHasConfig(this.bundles))
-      throw new TypeError('baseURL should only be configured once and must be configured first.');
-
-    this.baseURL = cfg.baseURL;
-
-    // sanitize baseURL
-    getBaseURLObj.call(this);
-  }
-
-  if (cfg.defaultJSExtensions)
-    this.defaultJSExtensions = cfg.defaultJSExtensions;
-
-  if (cfg.pluginFirst)
-    this.pluginFirst = cfg.pluginFirst;
-
-  if (cfg.paths) {
-    for (var p in cfg.paths)
-      this.paths[p] = cfg.paths[p];
-  }
-
-  if (cfg.map) {
-    for (var p in cfg.map) {
-      var v = cfg.map[p];
-
-      // object map backwards-compat into packages configuration
-      if (typeof v !== 'string') {
-        var normalized = this.normalizeSync(p);
-
-        // if doing default js extensions, undo to get package name
-        if (this.defaultJSExtensions && p.substr(p.length - 3, 3) != '.js')
-          normalized = normalized.substr(0, normalized.length - 3);
-
-        // if a package main, revert it
-        var pkgMatch = '';
-        for (var pkg in this.packages) {
-          if (normalized.substr(0, pkg.length) == pkg 
-              && (!normalized[pkg.length] || normalized[pkg.length] == '/') 
-              && pkgMatch.split('/').length < pkg.split('/').length)
-            pkgMatch = pkg;
-        }
-        if (pkgMatch && this.packages[pkgMatch].main)
-          normalized = normalized.substr(0, normalized.length - this.packages[pkgMatch].main.length - 1);
-
-        var pkg = this.packages[normalized] = this.packages[normalized] || {};
-        pkg.map = v;
-      }
-      else {
-        this.map[p] = v;
-      }
-    }
-  }
-
-  if (cfg.packagePaths) {
-    for (var i = 0; i < cfg.packagePaths.length; i++) {
-      var path = cfg.packagePaths[i];
-      var normalized = this.normalizeSync(path);
-      if (this.defaultJSExtensions && path.substr(path.length - 3, 3) != '.js')
-        normalized = normalized.substr(0, normalized.length - 3);
-      cfg.packagePaths[i] = normalized;
-    }
-  }
-
-  if (cfg.packages) {
-    for (var p in cfg.packages) {
-      if (p.match(/^([^\/]+:)?\/\/$/))
-        throw new TypeError('"' + p + '" is not a valid package name.');
-
-      // request with trailing "/" to get package name exactly
-      var prop = this.normalizeSync(p + (p[p.length - 1] != '/' ? '/' : ''));
-      prop = prop.substr(0, prop.length - 1);
-
-      // if doing default js extensions, undo to get package name
-      if (this.defaultJSExtensions && p.substr(p.length - 3, 3) != '.js')
-        prop = prop.substr(0, prop.length - 3);
-
-      this.packages[prop]= this.packages[prop] || {};
-      for (var q in cfg.packages[p])
-        if (indexOf.call(packageProperties, q) == -1 && typeof console != 'undefined' && console.warn)
-          console.warn('"' + q + '" is not a valid package configuration option in package ' + p);
-
-      extendMeta(this.packages[prop], cfg.packages[p]);
-    }
-  }
-
-  if (cfg.bundles) {
-    for (var p in cfg.bundles) {
-      var bundle = [];
-      for (var i = 0; i < cfg.bundles[p].length; i++)
-        bundle.push(this.normalizeSync(cfg.bundles[p][i]));
-      this.bundles[p] = bundle;
-    }
-  }
-
-  for (var c in cfg) {
-    var v = cfg[c];
-    var normalizeProp = false, normalizeValArray = false;
-
-    if (c == 'baseURL' || c == 'map' || c == 'packages' || c == 'bundles' || c == 'paths')
-      continue;
-
-    if (typeof v != 'object' || v instanceof Array) {
-      this[c] = v;
-    }
-    else {
-      this[c] = this[c] || {};
-
-      if (c == 'meta' || c == 'depCache')
-        normalizeProp = true;
-
-      for (var p in v) {
-        if (c == 'meta' && p[0] == '*')
-          this[c][p] = v[p];
-        else if (normalizeProp)
-          this[c][this.normalizeSync(p)] = v[p];
-        else
-          this[c][p] = v[p];
-      }
-    }
-  }
-};
-
-})();/*
- * Script tag fetch
- *
- * When load.metadata.scriptLoad is true, we load via script tag injection.
- */
-(function() {
-
-  if (typeof document != 'undefined')
-    var head = document.getElementsByTagName('head')[0];
-
-  // call this functione everytime a wrapper executes
-  var curSystem;
-  // System clobbering protection for Traceur
-  SystemJSLoader.prototype.onScriptLoad = function() {
-    __global.System = curSystem;
-  };
-
-  function webWorkerImport(loader, load) {
-    return new Promise(function(resolve, reject) {
-      if (load.metadata.integrity)
-        reject(new Error('Subresource integrity checking is not supported in web workers.'));
-
-      try {
-        importScripts(load.address);
-      }
-      catch(e) {
-        reject(e);
-      }
-
-      loader.onScriptLoad(load);
-      // if nothing registered, then something went wrong
-      if (!load.metadata.registered)
-        reject(load.address + ' did not call System.register or AMD define');
-
-      resolve('');
-    });
-  }
-
-  // override fetch to use script injection
-  hook('fetch', function(fetch) {
-    return function(load) {
-      var loader = this;
-
-      if (!load.metadata.scriptLoad || (!isBrowser && !isWorker))
-        return fetch.call(this, load);
-
-      if (isWorker)
-        return webWorkerImport(loader, load);
-
-      return new Promise(function(resolve, reject) {
-        var s = document.createElement('script');
-        s.async = true;
-
-        function complete(evt) {
-          if (s.readyState && s.readyState != 'loaded' && s.readyState != 'complete')
-            return;
-          cleanup();
-
-          // this runs synchronously after execution
-          // we now need to tell the wrapper handlers that
-          // this load record has just executed
-          loader.onScriptLoad(load);
-
-          // if nothing registered, then something went wrong
-          if (!load.metadata.registered)
-            reject(load.address + ' did not call System.register or AMD define');
-
-          resolve('');
-        }
-
-        function error(evt) {
-          cleanup();
-          reject(new Error('Unable to load script ' + load.address));
-        }
-
-        if (s.attachEvent) {
-          s.attachEvent('onreadystatechange', complete);
-        }
-        else {
-          s.addEventListener('load', complete, false);
-          s.addEventListener('error', error, false);
-        }
-
-        curSystem = __global.System;
-        __global.System = loader;
-        s.src = load.address;
-
-        if (load.metadata.integrity)
-          s.setAttribute('integrity', load.metadata.integrity);
-
-        head.appendChild(s);
-
-        function cleanup() {
-          if (s.detachEvent)
-            s.detachEvent('onreadystatechange', complete);
-          else {
-            s.removeEventListener('load', complete, false);
-            s.removeEventListener('error', error, false);
-          }
-          head.removeChild(s);
-        }
-      });
-    };
-  });
-})();
-/*
- * Instantiate registry extension
- *
- * Supports Traceur System.register 'instantiate' output for loading ES6 as ES5.
- *
- * - Creates the loader.register function
- * - Also supports metadata.format = 'register' in instantiate for anonymous register modules
- * - Also supports metadata.deps, metadata.execute and metadata.executingRequire
- *     for handling dynamic modules alongside register-transformed ES6 modules
- *
- *
- * The code here replicates the ES6 linking groups algorithm to ensure that
- * circular ES6 compiled into System.register can work alongside circular AMD 
- * and CommonJS, identically to the actual ES6 loader.
- *
- */
-(function() {
-
-  /*
-   * There are two variations of System.register:
-   * 1. System.register for ES6 conversion (2-3 params) - System.register([name, ]deps, declare)
-   *    see https://github.com/ModuleLoader/es6-module-loader/wiki/System.register-Explained
-   *
-   * 2. System.registerDynamic for dynamic modules (3-4 params) - System.registerDynamic([name, ]deps, executingRequire, execute)
-   * the true or false statement 
-   *
-   * this extension implements the linking algorithm for the two variations identical to the spec
-   * allowing compiled ES6 circular references to work alongside AMD and CJS circular references.
-   *
-   */
-  var anonRegister;
-  var calledRegister = false;
-  function doRegister(loader, name, register) {
-    calledRegister = true;
-
-    // named register
-    if (name) {
-      // ideally wouldn't apply map config to bundle names but 
-      // dependencies go through map regardless so we can't restrict
-      // could reconsider in shift to new spec
-      name = (loader.normalizeSync || loader.normalize).call(loader, name);
-      register.name = name;
-      if (!(name in loader.defined))
-        loader.defined[name] = register; 
-    }
-    // anonymous register
-    else {
-      if (anonRegister)
-        throw new TypeError('Invalid anonymous System.register module load. If loading a single module, ensure anonymous System.register is loaded via System.import. If loading a bundle, ensure all the System.register calls are named.');
-      anonRegister = register;
-    }
-  }
-  SystemJSLoader.prototype.register = function(name, deps, declare) {
-    if (typeof name != 'string') {
-      declare = deps;
-      deps = name;
-      name = null;
-    }
-
-    // dynamic backwards-compatibility
-    // can be deprecated eventually
-    if (typeof declare == 'boolean')
-      return this.registerDynamic.apply(this, arguments);
-
-    doRegister(this, name, {
-      declarative: true,
-      deps: deps,
-      declare: declare
-    });
-  };
-  SystemJSLoader.prototype.registerDynamic = function(name, deps, declare, execute) {
-    if (typeof name != 'string') {
-      execute = declare;
-      declare = deps;
-      deps = name;
-      name = null;
-    }
-
-    // dynamic
-    doRegister(this, name, {
-      declarative: false,
-      deps: deps,
-      execute: execute,
-      executingRequire: declare
-    });
-  };
-  /*
-   * Registry side table - loader.defined
-   * Registry Entry Contains:
-   *    - name
-   *    - deps 
-   *    - declare for declarative modules
-   *    - execute for dynamic modules, different to declarative execute on module
-   *    - executingRequire indicates require drives execution for circularity of dynamic modules
-   *    - declarative optional boolean indicating which of the above
-   *
-   * Can preload modules directly on System.defined['my/module'] = { deps, execute, executingRequire }
-   *
-   * Then the entry gets populated with derived information during processing:
-   *    - normalizedDeps derived from deps, created in instantiate
-   *    - groupIndex used by group linking algorithm
-   *    - evaluated indicating whether evaluation has happend
-   *    - module the module record object, containing:
-   *      - exports actual module exports
-   *
-   *    For dynamic we track the es module with:
-   *    - esModule actual es module value
-   *    - esmExports whether to extend the esModule with named exports
-   *      
-   *    Then for declarative only we track dynamic bindings with the 'module' records:
-   *      - name
-   *      - exports
-   *      - setters declarative setter functions
-   *      - dependencies, module records of dependencies
-   *      - importers, module records of dependents
-   *
-   * After linked and evaluated, entries are removed, declarative module records remain in separate
-   * module binding table
-   *
-   */
-  hookConstructor(function(constructor) {
-    return function() {
-      constructor.call(this);
-
-      this.defined = {};
-      this._loader.moduleRecords = {};
-    };
-  });
-
-  // script injection mode calls this function synchronously on load
-  hook('onScriptLoad', function(onScriptLoad) {
-    return function(load) {
-      onScriptLoad.call(this, load);
-
-      if (calledRegister) {
-        // anonymous define
-        if (anonRegister)
-          load.metadata.entry = anonRegister;
-
-        load.metadata.format = load.metadata.format || 'defined';
-        load.metadata.registered = true;
-        calledRegister = false;
-        anonRegister = null;
-      }
-    };
-  });
-
-  function buildGroups(entry, loader, groups) {
-    groups[entry.groupIndex] = groups[entry.groupIndex] || [];
-
-    if (indexOf.call(groups[entry.groupIndex], entry) != -1)
-      return;
-
-    groups[entry.groupIndex].push(entry);
-
-    for (var i = 0, l = entry.normalizedDeps.length; i < l; i++) {
-      var depName = entry.normalizedDeps[i];
-      var depEntry = loader.defined[depName];
-      
-      // not in the registry means already linked / ES6
-      if (!depEntry || depEntry.evaluated)
-        continue;
-      
-      // now we know the entry is in our unlinked linkage group
-      var depGroupIndex = entry.groupIndex + (depEntry.declarative != entry.declarative);
-
-      // the group index of an entry is always the maximum
-      if (depEntry.groupIndex === undefined || depEntry.groupIndex < depGroupIndex) {
-        
-        // if already in a group, remove from the old group
-        if (depEntry.groupIndex !== undefined) {
-          groups[depEntry.groupIndex].splice(indexOf.call(groups[depEntry.groupIndex], depEntry), 1);
-
-          // if the old group is empty, then we have a mixed depndency cycle
-          if (groups[depEntry.groupIndex].length == 0)
-            throw new TypeError("Mixed dependency cycle detected");
-        }
-
-        depEntry.groupIndex = depGroupIndex;
-      }
-
-      buildGroups(depEntry, loader, groups);
-    }
-  }
-
-  function link(name, loader) {
-    var startEntry = loader.defined[name];
-
-    // skip if already linked
-    if (startEntry.module)
-      return;
-
-    startEntry.groupIndex = 0;
-
-    var groups = [];
-
-    buildGroups(startEntry, loader, groups);
-
-    var curGroupDeclarative = !!startEntry.declarative == groups.length % 2;
-    for (var i = groups.length - 1; i >= 0; i--) {
-      var group = groups[i];
-      for (var j = 0; j < group.length; j++) {
-        var entry = group[j];
-
-        // link each group
-        if (curGroupDeclarative)
-          linkDeclarativeModule(entry, loader);
-        else
-          linkDynamicModule(entry, loader);
-      }
-      curGroupDeclarative = !curGroupDeclarative; 
-    }
-  }
-
-  // module binding records
-  function Module() {}
-  defineProperty(Module, 'toString', {
-    value: function() {
-      return 'Module';
-    }
-  });
-
-  function getOrCreateModuleRecord(name, moduleRecords) {
-    return moduleRecords[name] || (moduleRecords[name] = {
-      name: name,
-      dependencies: [],
-      exports: new Module(), // start from an empty module and extend
-      importers: []
-    });
-  }
-
-  function linkDeclarativeModule(entry, loader) {
-    // only link if already not already started linking (stops at circular)
-    if (entry.module)
-      return;
-
-    var moduleRecords = loader._loader.moduleRecords;
-    var module = entry.module = getOrCreateModuleRecord(entry.name, moduleRecords);
-    var exports = entry.module.exports;
-
-    var declaration = entry.declare.call(__global, function(name, value) {
-      module.locked = true;
-
-      if (typeof name == 'object') {
-        for (var p in name)
-          exports[p] = name[p];
-      }
-      else {
-        exports[name] = value;
-      }
-
-      for (var i = 0, l = module.importers.length; i < l; i++) {
-        var importerModule = module.importers[i];
-        if (!importerModule.locked) {
-          var importerIndex = indexOf.call(importerModule.dependencies, module);
-          importerModule.setters[importerIndex](exports);
-        }
-      }
-
-      module.locked = false;
-      return value;
-    });
-    
-    module.setters = declaration.setters;
-    module.execute = declaration.execute;
-
-    if (!module.setters || !module.execute) {
-      throw new TypeError('Invalid System.register form for ' + entry.name);
-    }
-
-    // now link all the module dependencies
-    for (var i = 0, l = entry.normalizedDeps.length; i < l; i++) {
-      var depName = entry.normalizedDeps[i];
-      var depEntry = loader.defined[depName];
-      var depModule = moduleRecords[depName];
-
-      // work out how to set depExports based on scenarios...
-      var depExports;
-
-      if (depModule) {
-        depExports = depModule.exports;
-      }
-      // dynamic, already linked in our registry
-      else if (depEntry && !depEntry.declarative) {
-        depExports = depEntry.esModule;
-      }
-      // in the loader registry
-      else if (!depEntry) {
-        depExports = loader.get(depName);
-      }
-      // we have an entry -> link
-      else {
-        linkDeclarativeModule(depEntry, loader);
-        depModule = depEntry.module;
-        depExports = depModule.exports;
-      }
-
-      // only declarative modules have dynamic bindings
-      if (depModule && depModule.importers) {
-        depModule.importers.push(module);
-        module.dependencies.push(depModule);
-      }
-      else {
-        module.dependencies.push(null);
-      }
-      
-      // run setters for all entries with the matching dependency name
-      var originalIndices = entry.originalIndices[i];
-      for (var j = 0, len = originalIndices.length; j < len; ++j) {
-        var index = originalIndices[j];
-        if (module.setters[index]) {
-          module.setters[index](depExports);
-        }
-      }
-    }
-  }
-
-  // An analog to loader.get covering execution of all three layers (real declarative, simulated declarative, simulated dynamic)
-  function getModule(name, loader) {
-    var exports;
-    var entry = loader.defined[name];
-
-    if (!entry) {
-      exports = loader.get(name);
-      if (!exports)
-        throw new Error('Unable to load dependency ' + name + '.');
-    }
-
-    else {
-      if (entry.declarative)
-        ensureEvaluated(name, [], loader);
-    
-      else if (!entry.evaluated)
-        linkDynamicModule(entry, loader);
-
-      exports = entry.module.exports;
-    }
-
-    if ((!entry || entry.declarative) && exports && exports.__useDefault)
-      return exports['default'];
-    
-    return exports;
-  }
-
-  function linkDynamicModule(entry, loader) {
-    if (entry.module)
-      return;
-
-    var exports = {};
-
-    var module = entry.module = { exports: exports, id: entry.name };
-
-    // AMD requires execute the tree first
-    if (!entry.executingRequire) {
-      for (var i = 0, l = entry.normalizedDeps.length; i < l; i++) {
-        var depName = entry.normalizedDeps[i];
-        // we know we only need to link dynamic due to linking algorithm
-        var depEntry = loader.defined[depName];
-        if (depEntry)
-          linkDynamicModule(depEntry, loader);
-      }
-    }
-
-    // now execute
-    entry.evaluated = true;
-    var output = entry.execute.call(__global, function(name) {
-      for (var i = 0, l = entry.deps.length; i < l; i++) {
-        if (entry.deps[i] != name)
-          continue;
-        return getModule(entry.normalizedDeps[i], loader);
-      }
-      throw new TypeError('Module ' + name + ' not declared as a dependency.');
-    }, exports, module);
-    
-    if (output)
-      module.exports = output;
-
-    // create the esModule object, which allows ES6 named imports of dynamics
-    exports = module.exports;
-
-    // __esModule flag treats as already-named
-    if (exports && exports.__esModule)
-      entry.esModule = exports;
-    // set module as 'default' export, then fake named exports by iterating properties
-    else if (entry.esmExports)
-      entry.esModule = getESModule(exports);
-    // just use the 'default' export
-    else
-      entry.esModule = { 'default': exports };
-  }
-
-  /*
-   * Given a module, and the list of modules for this current branch,
-   *  ensure that each of the dependencies of this module is evaluated
-   *  (unless one is a circular dependency already in the list of seen
-   *  modules, in which case we execute it)
-   *
-   * Then we evaluate the module itself depth-first left to right 
-   * execution to match ES6 modules
-   */
-  function ensureEvaluated(moduleName, seen, loader) {
-    var entry = loader.defined[moduleName];
-
-    // if already seen, that means it's an already-evaluated non circular dependency
-    if (!entry || entry.evaluated || !entry.declarative)
-      return;
-
-    // this only applies to declarative modules which late-execute
-
-    seen.push(moduleName);
-
-    for (var i = 0, l = entry.normalizedDeps.length; i < l; i++) {
-      var depName = entry.normalizedDeps[i];
-      if (indexOf.call(seen, depName) == -1) {
-        if (!loader.defined[depName])
-          loader.get(depName);
-        else
-          ensureEvaluated(depName, seen, loader);
-      }
-    }
-
-    if (entry.evaluated)
-      return;
-
-    entry.evaluated = true;
-    entry.module.execute.call(__global);
-  }
-
-  // override the delete method to also clear the register caches
-  hook('delete', function(del) {
-    return function(name) {
-      delete this._loader.moduleRecords[name];
-      delete this.defined[name];
-      return del.call(this, name);
-    };
-  });
-
-  var registerRegEx = /^\s*(\/\*[^\*]*(\*(?!\/)[^\*]*)*\*\/|\s*\/\/[^\n]*|\s*"[^"]+"\s*;?|\s*'[^']+'\s*;?)*\s*System\.register(Dynamic)?\s*\(/;
-
-  hook('fetch', function(fetch) {
-    return function(load) {
-      if (this.defined[load.name]) {
-        load.metadata.format = 'defined';
-        return '';
-      }
-      
-      // this is the synchronous chain for onScriptLoad
-      anonRegister = null;
-      calledRegister = false;
-      
-      if (load.metadata.format == 'register')
-        load.metadata.scriptLoad = true;
-
-      // NB remove when "deps " is deprecated
-      load.metadata.deps = load.metadata.deps || [];
-      
-      return fetch.call(this, load);
-    };
-  });
-
-  hook('translate', function(translate) {
-    // we run the meta detection here (register is after meta)
-    return function(load) {
-      return Promise.resolve(translate.call(this, load)).then(function(source) {
-
-        if (typeof load.metadata.deps === 'string')
-          load.metadata.deps = load.metadata.deps.split(',');
-        load.metadata.deps = load.metadata.deps || [];
-
-        // run detection for register format
-        if (load.metadata.format == 'register' || load.metadata.bundle || !load.metadata.format && load.source.match(registerRegEx))
-          load.metadata.format = 'register';
-        return source;
-      });
-    };
-  });
-
-  hook('instantiate', function(instantiate) {
-    return function(load) {
-      var loader = this;
-
-      var entry;
-
-      // first we check if this module has already been defined in the registry
-      if (loader.defined[load.name]) {
-        entry = loader.defined[load.name];
-        entry.deps = entry.deps.concat(load.metadata.deps);
-      }
-
-      // picked up already by a script injection
-      else if (load.metadata.entry)
-        entry = load.metadata.entry;
-
-      // otherwise check if it is dynamic
-      else if (load.metadata.execute) {
-        entry = {
-          declarative: false,
-          deps: load.metadata.deps || [],
-          execute: load.metadata.execute,
-          executingRequire: load.metadata.executingRequire // NodeJS-style requires or not
-        };
-      }
-
-      // Contains System.register calls
-      else if (load.metadata.format == 'register' || load.metadata.format == 'esm' || load.metadata.format == 'es6') {
-        anonRegister = null;
-        calledRegister = false;
-
-        if (typeof __exec != 'undefined')
-          __exec.call(loader, load);
-
-        if (!calledRegister && !load.metadata.registered)
-          throw new TypeError(load.name + ' detected as System.register but didn\'t execute.');
-
-        if (anonRegister)
-          entry = anonRegister;
-        else
-          load.metadata.bundle = true;
-
-        if (!entry && loader.defined[load.name])
-          entry = loader.defined[load.name];
-
-        anonRegister = null;
-        calledRegister = false;
-      }
-
-      // named bundles are just an empty module
-      if (!entry)
-        entry = {
-          declarative: false,
-          deps: load.metadata.deps,
-          execute: function() {
-            return loader.newModule({});
-          }
-        };
-
-      // place this module onto defined for circular references
-      loader.defined[load.name] = entry;
-      
-      var grouped = group(entry.deps);
-      
-      entry.deps = grouped.names;
-      entry.originalIndices = grouped.indices;
-      entry.name = load.name;
-      entry.esmExports = load.metadata.esmExports !== false;
-
-      // first, normalize all dependencies
-      var normalizePromises = [];
-      for (var i = 0, l = entry.deps.length; i < l; i++)
-        normalizePromises.push(Promise.resolve(loader.normalize(entry.deps[i], load.name)));
-
-      return Promise.all(normalizePromises).then(function(normalizedDeps) {
-
-        entry.normalizedDeps = normalizedDeps;
-
-        return {
-          deps: entry.deps,
-          execute: function() {
-            // recursively ensure that the module and all its 
-            // dependencies are linked (with dependency group handling)
-            link(load.name, loader);
-
-            // now handle dependency execution in correct order
-            ensureEvaluated(load.name, [], loader);
-
-            // remove from the registry
-            loader.defined[load.name] = undefined;
-
-            // return the defined module object
-            return loader.newModule(entry.declarative ? entry.module.exports : entry.esModule);
-          }
-        };
-      });
-    };
-  });
-})();
-/*
- * Extension to detect ES6 and auto-load Traceur or Babel for processing
- */
-(function() {
-  // good enough ES6 module detection regex - format detections not designed to be accurate, but to handle the 99% use case
-  var esmRegEx = /(^\s*|[}\);\n]\s*)(import\s+(['"]|(\*\s+as\s+)?[^"'\(\)\n;]+\s+from\s+['"]|\{)|export\s+\*\s+from\s+["']|export\s+(\{|default|function|class|var|const|let|async\s+function))/;
-
-  var traceurRuntimeRegEx = /\$traceurRuntime\s*\./;
-  var babelHelpersRegEx = /babelHelpers\s*\./;
-
-  hook('translate', function(translate) {
-    return function(load) {
-      var loader = this;
-      return translate.call(loader, load)
-      .then(function(source) {
-        // detect & transpile ES6
-        if (load.metadata.format == 'esm' || load.metadata.format == 'es6' || !load.metadata.format && source.match(esmRegEx)) {
-          load.metadata.format = 'esm';
-
-          // setting _loadedTranspiler = false tells the next block to
-          // do checks for setting transpiler metadata
-          loader._loadedTranspiler = loader._loadedTranspiler || false;
-          if (loader.pluginLoader)
-            loader.pluginLoader._loadedTranspiler = loader._loadedTranspiler || false;
-
-          // builder support
-          if (loader.builder)
-            load.metadata.originalSource = load.source;
-
-          // defined in es6-module-loader/src/transpile.js
-          return transpile.call(loader, load)
-          .then(function(source) {
-            // clear sourceMap as transpiler embeds it
-            load.metadata.sourceMap = undefined;
-            return source;
-          });
-        }
-
-        // load the transpiler correctly
-        if (loader._loadedTranspiler === false && load.name == loader.normalizeSync(loader.transpiler)) {
-          // always load transpiler as a global
-          if (source.length > 100) {
-            load.metadata.format = load.metadata.format || 'global';
-
-            if (loader.transpiler === 'traceur')
-              load.metadata.exports = 'traceur';
-            if (loader.transpiler === 'typescript')
-              load.metadata.exports = 'ts';
-          }
-
-          loader._loadedTranspiler = true;
-        }
-
-        // load the transpiler runtime correctly
-        if (loader._loadedTranspilerRuntime === false) {
-          if (load.name == loader.normalizeSync('traceur-runtime')
-              || load.name == loader.normalizeSync('babel/external-helpers*')) {
-            if (source.length > 100)
-              load.metadata.format = load.metadata.format || 'global';
-
-            loader._loadedTranspilerRuntime = true;
-          }
-        }
-
-        // detect transpiler runtime usage to load runtimes
-        if (load.metadata.format == 'register' && loader._loadedTranspilerRuntime !== true) {
-          if (!__global.$traceurRuntime && load.source.match(traceurRuntimeRegEx)) {
-            loader._loadedTranspilerRuntime = loader._loadedTranspilerRuntime || false;
-            return loader['import']('traceur-runtime').then(function() {
-              return source;
-            });
-          }
-          if (!__global.babelHelpers && load.source.match(babelHelpersRegEx)) {
-            loader._loadedTranspilerRuntime = loader._loadedTranspilerRuntime || false;
-            return loader['import']('babel/external-helpers').then(function() {
-              return source;
-            });
-          }
-        }
-
-        return source;
-      });
-    };
-  });
-
-})();
-/*
-  SystemJS Global Format
-
-  Supports
-    metadata.deps
-    metadata.globals
-    metadata.exports
-
-  Without metadata.exports, detects writes to the global object.
-*/
-var __globalName = typeof self != 'undefined' ? 'self' : 'global';
-
-hook('onScriptLoad', function(onScriptLoad) {
-  return function(load) {
-    if (load.metadata.format == 'global') {
-      load.metadata.registered = true;
-      var globalValue = readMemberExpression(load.metadata.exports, __global);
-      load.metadata.execute = function() {
-        return globalValue;
-      }
-    }
-    return onScriptLoad.call(this, load);
-  };
-});
-
-hook('fetch', function(fetch) {
-  return function(load) {
-    if (load.metadata.exports)
-      load.metadata.format = 'global';
-
-    // A global with exports, no globals and no deps
-    // can be loaded via a script tag
-    if (load.metadata.format == 'global' 
-        && load.metadata.exports && !load.metadata.globals 
-        && (!load.metadata.deps || load.metadata.deps.length == 0))
-      load.metadata.scriptLoad = true;
-
-    return fetch.call(this, load);
-  };
-});
-
-// ideally we could support script loading for globals, but the issue with that is that
-// we can't do it with AMD support side-by-side since AMD support means defining the
-// global define, and global support means not definining it, yet we don't have any hook
-// into the "pre-execution" phase of a script tag being loaded to handle both cases
-
-
-hook('instantiate', function(instantiate) {
-  return function(load) {
-    var loader = this;
-
-    if (!load.metadata.format)
-      load.metadata.format = 'global';
-
-    // globals shorthand support for:
-    // globals = ['Buffer'] where we just require 'Buffer' in the current context
-    if (load.metadata.globals) {
-      if (load.metadata.globals instanceof Array) {
-        var globals = {};
-        for (var i = 0; i < load.metadata.globals.length; i++)
-          globals[load.metadata.globals[i]] = load.metadata.globals[i];
-        load.metadata.globals = globals;
-      }
-    }
-
-    // global is a fallback module format
-    if (load.metadata.format == 'global' && !load.metadata.registered) {
-
-      for (var g in load.metadata.globals)
-        load.metadata.deps.push(load.metadata.globals[g]);
-
-      load.metadata.execute = function(require, exports, module) {
-
-        var globals;
-        if (load.metadata.globals) {
-          globals = {};
-          for (var g in load.metadata.globals)
-            globals[g] = require(load.metadata.globals[g]);
-        }
-        
-        var exportName = load.metadata.exports;
-
-        if (exportName)
-          load.source += '\n' + __globalName + '["' + exportName + '"] = ' + exportName + ';';
-
-        var retrieveGlobal = loader.get('@@global-helpers').prepareGlobal(module.id, exportName, globals);
-
-        __exec.call(loader, load);
-
-        return retrieveGlobal();
-      }
-    }
-    return instantiate.call(this, load);
-  };
-});
-hookConstructor(function(constructor) {
-  return function() {
-    var loader = this;
-    constructor.call(loader);
-
-    var hasOwnProperty = Object.prototype.hasOwnProperty;
-
-    // bare minimum ignores for IE8
-    var ignoredGlobalProps = ['_g', 'sessionStorage', 'localStorage', 'clipboardData', 'frames', 'external', 'mozAnimationStartTime', 'webkitStorageInfo', 'webkitIndexedDB'];
-
-    var globalSnapshot;
-
-    function forEachGlobal(callback) {
-      if (Object.keys)
-        Object.keys(__global).forEach(callback);
-      else
-        for (var g in __global) {
-          if (!hasOwnProperty.call(__global, g))
-            continue;
-          callback(g);
-        }
-    }
-
-    function forEachGlobalValue(callback) {
-      forEachGlobal(function(globalName) {
-        if (indexOf.call(ignoredGlobalProps, globalName) != -1)
-          return;
-        try {
-          var value = __global[globalName];
-        }
-        catch (e) {
-          ignoredGlobalProps.push(globalName);
-        }
-        callback(globalName, value);
-      });
-    }
-
-    loader.set('@@global-helpers', loader.newModule({
-      prepareGlobal: function(moduleName, exportName, globals) {
-        // disable module detection
-        var curDefine = __global.define;
-        
-        __global.define = undefined;
-        __global.exports = undefined;
-        if (__global.module && __global.module.exports)
-          __global.module = undefined;
-
-        // set globals
-        var oldGlobals;
-        if (globals) {
-          oldGlobals = {};
-          for (var g in globals) {
-            oldGlobals[g] = globals[g];
-            __global[g] = globals[g];
-          }
-        }
-
-        // store a complete copy of the global object in order to detect changes
-        if (!exportName) {
-          globalSnapshot = {};
-
-          forEachGlobalValue(function(name, value) {
-            globalSnapshot[name] = value;
-          });
-        }
-
-        // return function to retrieve global
-        return function() {
-          var globalValue;
-
-          if (exportName) {
-            globalValue = readMemberExpression(exportName, __global);
-          }
-          else {
-            var singleGlobal;
-            var multipleExports;
-            var exports = {};
-
-            forEachGlobalValue(function(name, value) {
-              if (globalSnapshot[name] === value)
-                return;
-              if (typeof value == 'undefined')
-                return;
-              exports[name] = value;
-
-              if (typeof singleGlobal != 'undefined') {
-                if (!multipleExports && singleGlobal !== value)
-                  multipleExports = true;
-              }
-              else {
-                singleGlobal = value;
-              }
-            });
-            globalValue = multipleExports ? exports : singleGlobal;
-          }
-
-          // revert globals
-          if (oldGlobals) {
-            for (var g in oldGlobals)
-              __global[g] = oldGlobals[g];
-          }
-          __global.define = curDefine;
-
-          return globalValue;
-        };
-      }
-    }));
-  };
-});
-/*
-  SystemJS CommonJS Format
-*/
-(function() {
-  // CJS Module Format
-  // require('...') || exports[''] = ... || exports.asd = ... || module.exports = ...
-  var cjsExportsRegEx = /(?:^\uFEFF?|[^$_a-zA-Z\xA0-\uFFFF.]|module\.)exports\s*(\[['"]|\.)|(?:^\uFEFF?|[^$_a-zA-Z\xA0-\uFFFF.])module\.exports\s*[=,]/;
-  // RegEx adjusted from https://github.com/jbrantly/yabble/blob/master/lib/yabble.js#L339
-  var cjsRequireRegEx = /(?:^\uFEFF?|[^$_a-zA-Z\xA0-\uFFFF."'])require\s*\(\s*("[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*')\s*\)/g;
-  var commentRegEx = /(\/\*([\s\S]*?)\*\/|([^:]|^)\/\/(.*)$)/mg;
-
-  function getCJSDeps(source) {
-    cjsRequireRegEx.lastIndex = commentRegEx.lastIndex = 0;
-
-    var deps = [];
-
-    // track comments in the source
-    var match;
-    
-    var commentLocations = [];
-    if (source.length / source.split('\n').length < 200) {
-      while (match = commentRegEx.exec(source))
-        commentLocations.push([match.index, match.index + match[0].length]);
-    }
-
-    while (match = cjsRequireRegEx.exec(source)) {
-      // ensure we're not in a comment location
-      var inComment = false;
-      for (var i = 0; i < commentLocations.length; i++) {
-        if (commentLocations[i][0] < match.index && commentLocations[i][1] > match.index + match[0].length)
-          inComment = true;
-      }
-      if (!inComment)
-        deps.push(match[1].substr(1, match[1].length - 2));
-    }
-
-    return deps;
-  }
-
-  if (typeof window != 'undefined' && typeof document != 'undefined' && window.location)
-    var windowOrigin = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '');
-
-  hookConstructor(function(constructor) {
-    return function() {
-      constructor.call(this);
-
-      // include the node require since we're overriding it
-      if (typeof require != 'undefined' && require.resolve && typeof process != 'undefined')
-        this._nodeRequire = require;
-    };
-  });
-
-  hook('normalize', function(normalize) {
-    return function (name, parentName) {
-      // dynamically load node-core modules when requiring `@node/fs` for example
-      if (name.substr(0, 6) == '@node/') {
-        if (!this._nodeRequire)
-          throw new TypeError('Can only load node core modules in Node.');
-        this.set(name, this.newModule(getESModule(this._nodeRequire(name.substr(6)))));
-      }
-      return normalize.call(this, name, parentName);
-    };
-  });
-
-  hook('instantiate', function(instantiate) {
-    return function(load) {
-      var loader = this;
-      if (!load.metadata.format) {
-        cjsExportsRegEx.lastIndex = 0;
-        cjsRequireRegEx.lastIndex = 0;
-        if (cjsRequireRegEx.exec(load.source) || cjsExportsRegEx.exec(load.source))
-          load.metadata.format = 'cjs';
-      }
-
-      if (load.metadata.format == 'cjs') {
-        var metaDeps = load.metadata.deps || [];
-        load.metadata.deps = metaDeps.concat(getCJSDeps(load.source));
-
-        for (var g in load.metadata.globals)
-          load.metadata.deps.push(load.metadata.globals[g]);
-
-        load.metadata.executingRequire = true;
-
-        load.metadata.execute = function(require, exports, module) {
-          // ensure meta deps execute first
-          for (var i = 0; i < metaDeps.length; i++)
-            require(metaDeps[i]);
-          var address = load.address || '';
-
-          var dirname = address.split('/');
-          dirname.pop();
-          dirname = dirname.join('/');
-
-          if (windowOrigin && address.substr(0, windowOrigin.length) === windowOrigin) {
-            address = address.substr(windowOrigin.length);
-            dirname = dirname.substr(windowOrigin.length);
-          }
-          else if (address.substr(0, 8) == 'file:///') {
-            address = address.substr(7);
-            dirname = dirname.substr(7);
-
-            // on windows remove leading '/'
-            if (isWindows) {
-              address = address.substr(1);
-              dirname = dirname.substr(1);
-            }
-          }
-
-          // disable AMD detection
-          var define = __global.define;
-          __global.define = undefined;
-
-          __global.__cjsWrapper = {
-            exports: exports,
-            args: [require, exports, module, address, dirname, __global, __global]
-          };
-
-          var globals = '';
-          if (load.metadata.globals) {
-            for (var g in load.metadata.globals)
-              globals += 'var ' + g + ' = require("' + load.metadata.globals[g] + '");';
-          }
-
-          load.source = "(function(require, exports, module, __filename, __dirname, global, GLOBAL) {" + globals
-              + load.source + "\n}).apply(__cjsWrapper.exports, __cjsWrapper.args);";
-
-          __exec.call(loader, load);
-
-          __global.__cjsWrapper = undefined;
-          __global.define = define;
-        };
-      }
-
-      return instantiate.call(loader, load);
-    };
-  });
-})();
-/*
- * AMD Helper function module
- * Separated into its own file as this is the part needed for full AMD support in SFX builds
- *
- */
-hookConstructor(function(constructor) {
-  return function() {
-    var loader = this;
-    constructor.call(this);
-
-    var commentRegEx = /(\/\*([\s\S]*?)\*\/|([^:]|^)\/\/(.*)$)/mg;
-    var cjsRequirePre = "(?:^|[^$_a-zA-Z\\xA0-\\uFFFF.])";
-    var cjsRequirePost = "\\s*\\(\\s*(\"([^\"]+)\"|'([^']+)')\\s*\\)";
-    var fnBracketRegEx = /\(([^\)]*)\)/;
-    var wsRegEx = /^\s+|\s+$/g;
-    
-    var requireRegExs = {};
-
-    function getCJSDeps(source, requireIndex) {
-
-      // remove comments
-      source = source.replace(commentRegEx, '');
-
-      // determine the require alias
-      var params = source.match(fnBracketRegEx);
-      var requireAlias = (params[1].split(',')[requireIndex] || 'require').replace(wsRegEx, '');
-
-      // find or generate the regex for this requireAlias
-      var requireRegEx = requireRegExs[requireAlias] || (requireRegExs[requireAlias] = new RegExp(cjsRequirePre + requireAlias + cjsRequirePost, 'g'));
-
-      requireRegEx.lastIndex = 0;
-
-      var deps = [];
-
-      var match;
-      while (match = requireRegEx.exec(source))
-        deps.push(match[2] || match[3]);
-
-      return deps;
-    }
-
-    /*
-      AMD-compatible require
-      To copy RequireJS, set window.require = window.requirejs = loader.amdRequire
-    */
-    function require(names, callback, errback, referer) {
-      // in amd, first arg can be a config object... we just ignore
-      if (typeof names == 'object' && !(names instanceof Array))
-        return require.apply(null, Array.prototype.splice.call(arguments, 1, arguments.length - 1));
-
-      // amd require
-      if (typeof names == 'string' && typeof callback == 'function')
-        names = [names];
-      if (names instanceof Array) {
-        var dynamicRequires = [];
-        for (var i = 0; i < names.length; i++)
-          dynamicRequires.push(loader['import'](names[i], referer));
-        Promise.all(dynamicRequires).then(function(modules) {
-          if (callback)
-            callback.apply(null, modules);
-        }, errback);
-      }
-
-      // commonjs require
-      else if (typeof names == 'string') {
-        var module = loader.get(loader.normalizeSync(names, referer));
-        if (!module)
-          throw new Error('Module not already loaded loading "' + names + '" from "' + referer + '".');
-        return module.__useDefault ? module['default'] : module;
-      }
-
-      else
-        throw new TypeError('Invalid require');
-    }
-
-    function define(name, deps, factory) {
-      if (typeof name != 'string') {
-        factory = deps;
-        deps = name;
-        name = null;
-      }
-      if (!(deps instanceof Array)) {
-        factory = deps;
-        deps = ['require', 'exports', 'module'].splice(0, factory.length);
-      }
-
-      if (typeof factory != 'function')
-        factory = (function(factory) {
-          return function() { return factory; }
-        })(factory);
-
-      // in IE8, a trailing comma becomes a trailing undefined entry
-      if (deps[deps.length - 1] === undefined)
-        deps.pop();
-
-      // remove system dependencies
-      var requireIndex, exportsIndex, moduleIndex;
-      
-      if ((requireIndex = indexOf.call(deps, 'require')) != -1) {
-        
-        deps.splice(requireIndex, 1);
-
-        // only trace cjs requires for non-named
-        // named defines assume the trace has already been done
-        if (!name)
-          deps = deps.concat(getCJSDeps(factory.toString(), requireIndex));
-      }
-
-      if ((exportsIndex = indexOf.call(deps, 'exports')) != -1)
-        deps.splice(exportsIndex, 1);
-      
-      if ((moduleIndex = indexOf.call(deps, 'module')) != -1)
-        deps.splice(moduleIndex, 1);
-
-      var define = {
-        name: name,
-        deps: deps,
-        execute: function(req, exports, module) {
-
-          var depValues = [];
-          for (var i = 0; i < deps.length; i++)
-            depValues.push(req(deps[i]));
-
-          module.uri = module.id;
-
-          module.config = function() {};
-
-          // add back in system dependencies
-          if (moduleIndex != -1)
-            depValues.splice(moduleIndex, 0, module);
-          
-          if (exportsIndex != -1)
-            depValues.splice(exportsIndex, 0, exports);
-          
-          if (requireIndex != -1) {
-            function contextualRequire(names, callback, errback) {
-              if (typeof names == 'string' && typeof callback != 'function')
-                return req(names);
-              return require.call(loader, names, callback, errback, module.id);
-            }
-            contextualRequire.toUrl = function(name) {
-              // normalize without defaultJSExtensions
-              var defaultJSExtension = loader.defaultJSExtensions && name.substr(name.length - 3, 3) != '.js';
-              var url = loader.normalizeSync(name, module.id);
-              if (defaultJSExtension && url.substr(url.length - 3, 3) == '.js')
-                url = url.substr(0, url.length - 3);
-              return url;
-            };
-            depValues.splice(requireIndex, 0, contextualRequire);
-          }
-
-          // set global require to AMD require
-          var curRequire = __global.require;
-          __global.require = require;
-
-          var output = factory.apply(exportsIndex == -1 ? __global : exports, depValues);
-
-          __global.require = curRequire;
-
-          if (typeof output == 'undefined' && module)
-            output = module.exports;
-
-          if (typeof output != 'undefined')
-            return output;
-        }
-      };
-
-      // anonymous define
-      if (!name) {
-        // already defined anonymously -> throw
-        if (lastModule.anonDefine)
-          throw new TypeError('Multiple defines for anonymous module');
-        lastModule.anonDefine = define;
-      }
-      // named define
-      else {
-        // if we don't have any other defines, 
-        // then let this be an anonymous define
-        // this is just to support single modules of the form:
-        // define('jquery')
-        // still loading anonymously
-        // because it is done widely enough to be useful
-        if (!lastModule.anonDefine && !lastModule.isBundle) {
-          lastModule.anonDefine = define;
-        }
-        // otherwise its a bundle only
-        else {
-          // if there is an anonDefine already (we thought it could have had a single named define)
-          // then we define it now
-          // this is to avoid defining named defines when they are actually anonymous
-          if (lastModule.anonDefine && lastModule.anonDefine.name)
-            loader.registerDynamic(lastModule.anonDefine.name, lastModule.anonDefine.deps, false, lastModule.anonDefine.execute);
-
-          lastModule.anonDefine = null;
-        }
-
-        // note this is now a bundle
-        lastModule.isBundle = true;
-
-        // define the module through the register registry
-        loader.registerDynamic(name, define.deps, false, define.execute);
-      }
-    }
-    define.amd = {};
-
-    // adds define as a global (potentially just temporarily)
-    function createDefine(loader) {
-      lastModule.anonDefine = null;
-      lastModule.isBundle = false;
-
-      // ensure no NodeJS environment detection
-      var oldModule = __global.module;
-      var oldExports = __global.exports;
-      var oldDefine = __global.define;
-
-      __global.module = undefined;
-      __global.exports = undefined;
-      __global.define = define;
-
-      return function() {
-        __global.define = oldDefine;
-        __global.module = oldModule;
-        __global.exports = oldExports;
-      };
-    }
-
-    var lastModule = {
-      isBundle: false,
-      anonDefine: null
-    };
-
-    loader.set('@@amd-helpers', loader.newModule({
-      createDefine: createDefine,
-      require: require,
-      define: define,
-      lastModule: lastModule
-    }));
-    loader.amdDefine = define;
-    loader.amdRequire = require;
-  };
-});/*
-  SystemJS AMD Format
-  Provides the AMD module format definition at System.format.amd
-  as well as a RequireJS-style require on System.require
-*/
-(function() {
-  // AMD Module Format Detection RegEx
-  // define([.., .., ..], ...)
-  // define(varName); || define(function(require, exports) {}); || define({})
-  var amdRegEx = /(?:^\uFEFF?|[^$_a-zA-Z\xA0-\uFFFF.])define\s*\(\s*("[^"]+"\s*,\s*|'[^']+'\s*,\s*)?\s*(\[(\s*(("[^"]+"|'[^']+')\s*,|\/\/.*\r?\n|\/\*(.|\s)*?\*\/))*(\s*("[^"]+"|'[^']+')\s*,?)?(\s*(\/\/.*\r?\n|\/\*(.|\s)*?\*\/))*\s*\]|function\s*|{|[_$a-zA-Z\xA0-\uFFFF][_$a-zA-Z0-9\xA0-\uFFFF]*\))/;
-
-  // script injection mode calls this function synchronously on load
-  hook('onScriptLoad', function(onScriptLoad) {
-    return function(load) {
-      onScriptLoad.call(this, load);
-
-      var lastModule = this.get('@@amd-helpers').lastModule;
-      if (lastModule.anonDefine || lastModule.isBundle) {
-        load.metadata.format = 'defined';
-        load.metadata.registered = true;
-        lastModule.isBundle = false;
-      }
-
-      if (lastModule.anonDefine) {
-        load.metadata.deps = load.metadata.deps ? load.metadata.deps.concat(lastModule.anonDefine.deps) : lastModule.anonDefine.deps;
-        load.metadata.execute = lastModule.anonDefine.execute;
-        lastModule.anonDefine = null;
-      }
-    };
-  });
-
-  hook('fetch', function(fetch) {
-    return function(load) {
-      if (load.metadata.format === 'amd')
-        load.metadata.scriptLoad = true;
-      if (load.metadata.scriptLoad)
-        this.get('@@amd-helpers').createDefine(this);
-      return fetch.call(this, load);
-    };
-  });
-
-  hook('instantiate', function(instantiate) {
-    return function(load) {
-      var loader = this;
-      
-      if (load.metadata.format == 'amd' || !load.metadata.format && load.source.match(amdRegEx)) {
-        load.metadata.format = 'amd';
-        
-        if (!loader.builder && loader.execute !== false) {
-          var removeDefine = this.get('@@amd-helpers').createDefine(loader);
-
-          __exec.call(loader, load);
-
-          removeDefine(loader);
-
-          var lastModule = this.get('@@amd-helpers').lastModule;
-
-          if (!lastModule.anonDefine && !lastModule.isBundle)
-            throw new TypeError('AMD module ' + load.name + ' did not define');
-
-          if (lastModule.anonDefine) {
-            load.metadata.deps = load.metadata.deps ? load.metadata.deps.concat(lastModule.anonDefine.deps) : lastModule.anonDefine.deps;
-            load.metadata.execute = lastModule.anonDefine.execute;
-          }
-
-          lastModule.isBundle = false;
-          lastModule.anonDefine = null;
-        }
-        else {
-          load.metadata.execute = function() {
-            return load.metadata.builderExecute.apply(this, arguments);
-          };
-        }
-
-        return instantiate.call(loader, load);
-      }
-
-      return instantiate.call(loader, load);
-    };
-  });
-
-})();
-/*
-  SystemJS map support
-  
-  Provides map configuration through
-    System.map['jquery'] = 'some/module/map'
-
-  Note that this applies for subpaths, just like RequireJS:
-
-  jquery      -> 'some/module/map'
-  jquery/path -> 'some/module/map/path'
-  bootstrap   -> 'bootstrap'
-
-  The most specific map is always taken, as longest path length
-*/
-hookConstructor(function(constructor) {
-  return function() {
-    constructor.call(this);
-    this.map = {};
-  };
-});
-
-hook('normalize', function(normalize) {
-  return function(name, parentName, parentAddress) {
-    if (name.substr(0, 1) != '.' && name.substr(0, 1) != '/' && !name.match(absURLRegEx)) {
-      var bestMatch, bestMatchLength = 0;
-
-      // now do the global map
-      for (var p in this.map) {
-        if (name.substr(0, p.length) == p && (name.length == p.length || name[p.length] == '/')) {
-          var curMatchLength = p.split('/').length;
-          if (curMatchLength <= bestMatchLength)
-            continue;
-          bestMatch = p;
-          bestMatchLength = curMatchLength;
-        }
-      }
-
-      if (bestMatch)
-        name = this.map[bestMatch] + name.substr(bestMatch.length);
-    }
-    
-    return normalize.call(this, name, parentName, parentAddress);
-  };
-});
-/*
- * Paths extension
- * 
- * Applies paths and normalizes to a full URL
- */
-hook('normalize', function(normalize) {
-
-  return function(name, parentName) {
-    var normalized = normalize.call(this, name, parentName);
-
-    // if the module is in the registry already, use that
-    if (this.has(normalized))
-      return normalized;
-
-    // percent encode just '#' in urls
-    if (isBrowser)
-      normalized = normalized.replace(/#/g, '%23');
-
-    if (normalized.match(absURLRegEx)) {
-      // defaultJSExtensions backwards compatibility
-      if (this.defaultJSExtensions && normalized.substr(normalized.length - 3, 3) != '.js')
-        normalized += '.js';
-      return normalized;
-    }
-
-    // applyPaths implementation provided from ModuleLoader system.js source
-    normalized = applyPaths(this.paths, normalized) || normalized;
-
-    // defaultJSExtensions backwards compatibility
-    if (this.defaultJSExtensions && normalized.substr(normalized.length - 3, 3) != '.js')
-      normalized += '.js';
-
-    // ./x, /x -> page-relative
-    if (normalized[0] == '.' || normalized[0] == '/')
-      return new URL(normalized, baseURIObj).href;
-    // x -> baseURL-relative
-    else
-      return new URL(normalized, getBaseURLObj.call(this)).href;
-  };
-});/*
- * Package Configuration Extension
- *
- * Example:
- *
- * System.packages = {
- *   jquery: {
- *     basePath: 'lib', // optionally only use a subdirectory within the package
- *     main: 'index.js', // when not set, package name is requested directly
- *     format: 'amd',
- *     defaultExtension: 'js',
- *     meta: {
- *       '*.ts': {
- *         loader: 'typescript'
- *       },
- *       'vendor/sizzle.js': {
- *         format: 'global'
- *       }
- *     },
- *     map: {
- *        // map internal require('sizzle') to local require('./vendor/sizzle')
- *        sizzle: './vendor/sizzle.js',
- *        // map any internal or external require of 'jquery/vendor/another' to 'another/index.js'
- *        './vendor/another.js': './another/index.js',
- *        // test.js / test -> lib/test.js
- *        './test.js': './lib/test.js',
- *
- *        // environment-specific map configurations
- *        './index.js': {
- *          '~browser': './index-node.js'
- *        }
- *     }
- *   }
- * };
- *
- * Then:
- *   import 'jquery'                       -> jquery/index.js
- *   import 'jquery/submodule'             -> jquery/submodule.js
- *   import 'jquery/submodule.ts'          -> jquery/submodule.ts loaded as typescript
- *   import 'jquery/vendor/another'        -> another/index.js
- *
- * Detailed Behaviours
- * - main is the only property where a leading "./" can be added optionally
- * - map and defaultExtension are applied to the main
- * - defaultExtension adds the extension only if no other extension is present
- * - defaultJSExtensions applies after map when defaultExtension is not set
- * - if a meta value is available for a module, map and defaultExtension are skipped
- * - like global map, package map also applies to subpaths (sizzle/x, ./vendor/another/sub)
- * - condition module map is '@env' module in package or '@system-env' globally
- *
- * In addition, the following meta properties will be allowed to be package
- * -relative as well in the package meta config:
- *   
- *   - loader
- *   - alias
- *
- *
- * Package Configuration Loading
- * 
- * Not all packages may already have their configuration present in the System config
- * For these cases, a list of packagePaths can be provided, which when matched against
- * a request, will first request a ".json" file by the package name to derive the package
- * configuration from. This allows dynamic loading of non-predetermined code, a key use
- * case in SystemJS.
- *
- * Example:
- * 
- *   System.packagePaths = ['packages/*'];
- *
- *   // will first request 'packages/new-package.json' for the package config
- *   // before completing the package request to 'packages/new-package/path'
- *   System.import('packages/new-package/path');
- *
- * When a package matches packagePaths, it will always send a config request for
- * the package configuration.
- * Any existing package configurations for the package will deeply merge with the 
- * package config, with the existing package configurations taking preference.
- * To opt-out of the package configuration request for a package that matches
- * packagePaths, use the { loadConfig: false } package config option.
- * 
- */
-(function() {
-
-  hookConstructor(function(constructor) {
-    return function() {
-      constructor.call(this);
-      this.packages = {};
-      this.packagePaths = {};
-    };
-  });
-
-  function getPackage(name) {
-    // use most specific package
-    var curPkg, curPkgLen = 0, pkgLen;
-    for (var p in this.packages) {
-      if (name.substr(0, p.length) === p && (name.length === p.length || name[p.length] === '/')) {
-        pkgLen = p.split('/').length;
-        if (pkgLen > curPkgLen) {
-          curPkg = p;
-          curPkgLen = pkgLen;
-        }
-      }
-    }
-    return curPkg;
-  }
-
-  function applyMap(map, name) {
-    var bestMatch, bestMatchLength = 0;
-    
-    for (var p in map) {
-      if (name.substr(0, p.length) == p && (name.length == p.length || name[p.length] == '/')) {
-        var curMatchLength = p.split('/').length;
-        if (curMatchLength <= bestMatchLength)
-          continue;
-        bestMatch = p;
-        bestMatchLength = curMatchLength;
-      }
-    }
-
-    return bestMatch;
-  }
-
-  function envMap(loader, pkgName, pkgMap, name) {
-    var map = applyMap(pkgMap, name);
-    var mapped = pkgMap[map];
-
-    // conditional package map
-    if (mapped) {
-      if (typeof mapped == 'object') {
-        return loader['import'](pkgMap['@env'] || '@system-env', pkgName)
-        .then(function(env) {
-          // first map condition to match is used
-          for (var e in mapped) {
-            var negate = e[0] == '~';
-
-            var value = readMemberExpression(negate ? e.substr(1) : e, env);
-
-            if (!negate && value || negate && !value)
-              return mapped[e] + name.substr(map.length);
-          }
-        });
-      }
-      // normal map
-      else {
-        return mapped + name.substr(map.length);
-      }
-    }
-  }
-
-  function getBasePath(pkg) {
-    // sanitize basePath
-    var basePath = pkg.basePath && pkg.basePath != '.' ? pkg.basePath : '';
-    if (basePath) {
-      if (basePath.substr(0, 2) == './')
-        basePath = basePath.substr(2);
-      if (basePath[basePath.length - 1] != '/')
-        basePath += '/';
-    }
-    return basePath;
-  }
-
-  function applyPackageConfig(normalized, pkgName, sync, defaultJSExtension) {
-    var loader = this;
-    var pkg = loader.packages[pkgName];
-
-    var basePath = getBasePath(pkg);
-
-    // main
-    if (pkgName === normalized && pkg.main)
-      normalized += '/' + (pkg.main.substr(0, 2) == './' ? pkg.main.substr(2) : pkg.main);
-
-    // allow for direct package name normalization with trailling "/" (no main)
-    if (normalized.length == pkgName.length + 1 && normalized[pkgName.length] == '/')
-      return normalized + (defaultJSExtension && normalized.substr(normalized.length - 3, 3) != '.js' ? '.js' : '');
-
-    // defaultExtension & defaultJSExtension
-    // if we have meta for this package, don't do defaultExtensions
-    var defaultExtension = '';
-    if (!pkg.meta || !(pkg.meta[normalized.substr(pkgName.length + 1)] || pkg.meta['./' + normalized.substr(pkgName.length + 1)])) {
-      // apply defaultExtension
-      if ('defaultExtension' in pkg && pkgName !== normalized && normalized[normalized.length - 1] != '/') {
-        if (pkg.defaultExtension !== false && (normalized.split('/').pop().lastIndexOf('.') == -1))
-          defaultExtension = '.' + pkg.defaultExtension;
-      }
-      // apply defaultJSExtensions if defaultExtension not set
-      else if (defaultJSExtension) {
-        defaultExtension = '.js';
-      }
-    }
-
-    // no submap if name is package itself
-    if (normalized.length == pkgName.length)
-      return normalized + defaultExtension;
-
-    // sync normalize does not apply package map
-    if (sync || !pkg.map)
-      return pkgName + '/' + basePath + normalized.substr(pkgName.length + 1) + defaultExtension;
-
-    var subPath = '.' + normalized.substr(pkgName.length);
-
-    // apply submap checking without then with defaultExtension
-    return Promise.resolve(envMap(loader, pkgName, pkg.map, subPath))
-    .then(function(mapped) {
-      if (mapped)
-        return mapped;
-
-      if (defaultExtension)
-        return envMap(loader, pkgName, pkg.map, subPath + defaultExtension);
-    })
-    .then(function(mapped) {
-      if (mapped) {
-        // '.' as a target is the package itself (with package main check)
-        if (mapped == '.')
-          return loader.normalizeSync(pkgName);
-        // internal package map
-        else if (mapped.substr(0, 2) == './')
-          return pkgName + '/' + basePath + mapped.substr(2);
-        // global package map
-        else
-          return loader.normalize.call(loader, mapped); 
-      }
-      else
-        return pkgName + '/' + basePath + normalized.substr(pkgName.length + 1) + defaultExtension;
-    });
-  }
-
-  var packagePathsRegExps = {};
-  var pkgConfigPromises = {};
-  function createPackageNormalize(normalize, sync) {
-    return function(name, parentName) {
-      // apply contextual package map first
-      if (parentName) {
-        var parentPackage = getPackage.call(this, parentName) || 
-            this.defaultJSExtensions && parentName.substr(parentName.length - 3, 3) == '.js' && 
-            getPackage.call(this, parentName.substr(0, parentName.length - 3));
-      }
-
-      if (parentPackage && name[0] !== '.') {
-        var parentMap = this.packages[parentPackage].map;
-        if (parentMap) {
-          var map = applyMap(parentMap, name);
-
-          if (map) {
-            name = parentMap[map] + name.substr(map.length);
-
-            // relative maps are package-relative
-            if (name[0] === '.')
-              parentName = parentPackage + '/';
-          }
-        }
-      }
-
-      var defaultJSExtension = this.defaultJSExtensions && name.substr(name.length - 3, 3) != '.js';
-
-      // apply global map, relative normalization
-      var normalized = normalize.call(this, name, parentName);
-
-      // undo defaultJSExtension
-      if (normalized.substr(normalized.length - 3, 3) != '.js')
-        defaultJSExtension = false;
-      if (defaultJSExtension)
-        normalized = normalized.substr(0, normalized.length - 3);
-
-      // check if we are inside a package
-      var pkgName = getPackage.call(this, normalized);
-
-      var loader = this;
-      
-      // check if we match a packagePaths
-      if (!sync) {
-        var pkgPath;
-        for (var i = 0; i < this.packagePaths.length; i++) {
-          var match = normalized.match(packagePathsRegExps[this.packagePaths[i]] || 
-              (packagePathsRegExps[this.packagePaths[i]] = new RegExp('^(' + this.packagePaths[i].replace(/\*/g, '[^\\/]+') + ')(\/|$)')));
-          if (match) {
-            pkgPath = match[1];
-            break;
-          }
-        }
-
-        if (pkgPath && (!pkgName || pkgName != pkgPath || loader.packages[pkgName].loadConfig !== false)) {
-          return (pkgConfigPromises[pkgPath] || 
-            (pkgConfigPromises[pkgPath] = 
-              loader['fetch']({ name: pkgPath + '.json', address: pkgPath + '.json', metadata: {} })
-              .then(function(source) {
-                try {
-                  return JSON.parse(source);
-                }
-                catch(e) {
-                  throw new Error('Invalid JSON in package configuration file ' + pkgPath);
-                }
-              })
-              .then(function(cfg) {
-                // deeply-merge (to first level) config with any existing package config
-                if (pkgName && pkgName == pkgPath)
-                  extendMeta(cfg, loader.packages[pkgPath]);
-
-                loader.packages[pkgPath] = cfg;
-              })
-            )
-          )
-          .then(function() {
-            // finally apply the package config we just created to the current request
-            return applyPackageConfig.call(loader, normalized, pkgPath, sync, defaultJSExtension);
-          });
-        }
-      }
-
-      if (pkgName)
-        return applyPackageConfig.call(loader, normalized, pkgName, sync, defaultJSExtension);
-      
-      // add back defaultJSExtension if not a package
-      if (defaultJSExtension)
-        normalized += '.js';
-
-      return normalized;
-    };
-  }
-
-  SystemJSLoader.prototype.normalizeSync = SystemJSLoader.prototype.normalize;
-
-  hook('normalizeSync', function(normalize) {
-    return createPackageNormalize(normalize, true);
-  });
-
-  hook('normalize', function(normalize) {
-    return createPackageNormalize(normalize, false);
-  });
-
-  hook('locate', function(locate) {
-    return function(load) {
-      var loader = this;
-      return Promise.resolve(locate.call(this, load))
-      .then(function(address) {
-        var pkgName = getPackage.call(loader, load.name);
-        if (pkgName) {
-          var pkg = loader.packages[pkgName];
-
-          var basePath = getBasePath(pkg);
-          
-          // format
-          if (pkg.format)
-            load.metadata.format = load.metadata.format || pkg.format;
-
-          // loader
-          if (pkg.loader)
-            load.metadata.loader = load.metadata.loader || pkg.loader;
-
-          if (pkg.meta) {
-            // wildcard meta
-            var meta = {};
-            var bestDepth = 0;
-            var wildcardIndex;
-            for (var module in pkg.meta) {
-              // allow meta to start with ./ for flexibility
-              var dotRel = module.substr(0, 2) == './' ? './' : '';
-              if (dotRel)
-                module = module.substr(2);
-
-              wildcardIndex = module.indexOf('*');
-              if (wildcardIndex === -1)
-                continue;
-
-              if (basePath + module.substr(0, wildcardIndex) === load.name.substr(pkgName.length + 1, wildcardIndex + basePath.length)
-                  && module.substr(wildcardIndex + 1) === load.name.substr(load.name.length - module.length + wildcardIndex + 1)) {
-                var depth = module.split('/').length;
-                if (depth > bestDepth)
-                  bestDetph = depth;
-                extendMeta(meta, pkg.meta[dotRel + module], bestDepth != depth);
-              }
-            }
-            // exact meta
-            var metaName = load.name.substr(pkgName.length + basePath.length + 1);
-            var exactMeta = pkg.meta[metaName] || pkg.meta['./' + metaName];
-            if (exactMeta && load.name.substr(pkgName.length + 1, basePath.length) == basePath)
-              extendMeta(meta, exactMeta);
-
-            // allow alias and loader to be package-relative
-            if (meta.alias && meta.alias.substr(0, 2) == './')
-              meta.alias = pkgName + meta.alias.substr(1);
-            if (meta.loader && meta.loader.substr(0, 2) == './')
-              meta.loader = pkgName + meta.loader.substr(1);
-            
-            extendMeta(load.metadata, meta);
-          }
-        }
-
-        return address;
-      });
-    };
-  });
-
-})();/*
-  SystemJS Loader Plugin Support
-
-  Supports plugin loader syntax with "!", or via metadata.loader
-
-  The plugin name is loaded as a module itself, and can override standard loader hooks
-  for the plugin resource. See the plugin section of the systemjs readme.
-*/
-(function() {
-
-  // sync or async plugin normalize function
-  function normalizePlugin(normalize, name, parentName, sync) {
-    var loader = this;
-    // if parent is a plugin, normalize against the parent plugin argument only
-    if (parentName) {
-      var parentPluginIndex;
-      if (loader.pluginFirst) {
-        if ((parentPluginIndex = parentName.lastIndexOf('!')) != -1)
-          parentName = parentName.substr(parentPluginIndex + 1);
-      }
-      else {
-        if ((parentPluginIndex = parentName.indexOf('!')) != -1)
-          parentName = parentName.substr(0, parentPluginIndex);
-      }
-    }
-
-    // if this is a plugin, normalize the plugin name and the argument
-    var pluginIndex = name.lastIndexOf('!');
-    if (pluginIndex != -1) {
-      var argumentName;
-      var pluginName;
-
-      if (loader.pluginFirst) {
-        argumentName = name.substr(pluginIndex + 1);
-        pluginName = name.substr(0, pluginIndex);
-      }
-      else {
-        argumentName = name.substr(0, pluginIndex);
-        pluginName = name.substr(pluginIndex + 1) || argumentName.substr(argumentName.lastIndexOf('.') + 1);
-      }
-
-      // note if normalize will add a default js extension
-      // if so, remove for backwards compat
-      // this is strange and sucks, but will be deprecated
-      var defaultExtension = loader.defaultJSExtensions && argumentName.substr(argumentName.length - 3, 3) != '.js';
-
-      // put name back together after parts have been normalized
-      function normalizePluginParts(argumentName, pluginName) {
-        if (defaultExtension && argumentName.substr(argumentName.length - 3, 3) == '.js')
-          argumentName = argumentName.substr(0, argumentName.length - 3);
-
-        if (loader.pluginFirst) {
-          return pluginName + '!' + argumentName;
-        }
-        else {
-          return argumentName + '!' + pluginName;
-        }
-      }
-
-      if (sync) {
-        argumentName = loader.normalizeSync(argumentName, parentName);
-        pluginName = loader.normalizeSync(pluginName, parentName);
-
-        return normalizePluginParts(argumentName, pluginName);
-      }
-      else {
-        return Promise.all([
-          loader.normalize(argumentName, parentName),
-          loader.normalize(pluginName, parentName)
-        ])
-        .then(function(normalized) {
-          return normalizePluginParts(normalized[0], normalized[1]);
-        });
-      }
-    }
-    else {
-      return normalize.call(loader, name, parentName);
-    }
-  }
-
-  // async plugin normalize
-  hook('normalize', function(normalize) {
-    return function(name, parentName) {
-      return normalizePlugin.call(this, normalize, name, parentName, false);
-    };
-  });
-
-  hook('normalizeSync', function(normalizeSync) {
-    return function(name, parentName) {
-      return normalizePlugin.call(this, normalizeSync, name, parentName, true);
-    };
-  });
-
-  hook('locate', function(locate) {
-    return function(load) {
-      var loader = this;
-
-      var name = load.name;
-
-      // plugin syntax
-      var pluginSyntaxIndex;
-      if (loader.pluginFirst) {
-        if ((pluginSyntaxIndex = name.indexOf('!')) != -1) {
-          load.metadata.loader = name.substr(0, pluginSyntaxIndex);
-          load.name = name.substr(pluginSyntaxIndex + 1);
-        }
-      }
-      else {
-        if ((pluginSyntaxIndex = name.lastIndexOf('!')) != -1) {
-          load.metadata.loader = name.substr(pluginSyntaxIndex + 1);
-          load.name = name.substr(0, pluginSyntaxIndex);
-        }
-      }
-
-      return locate.call(loader, load)
-      .then(function(address) {
-        var plugin = load.metadata.loader;
-
-        if (!plugin)
-          return address;
-
-        // only fetch the plugin itself if this name isn't defined
-        if (loader.defined && loader.defined[name])
-          return address;
-
-        var pluginLoader = loader.pluginLoader || loader;
-
-        // load the plugin module and run standard locate
-        return pluginLoader['import'](plugin)
-        .then(function(loaderModule) {
-          // store the plugin module itself on the metadata
-          load.metadata.loaderModule = loaderModule;
-
-          load.address = address;
-          if (loaderModule.locate)
-            return loaderModule.locate.call(loader, load);
-
-          return address;
-        });
-      });
-    };
-  });
-
-  hook('fetch', function(fetch) {
-    return function(load) {
-      var loader = this;
-      if (load.metadata.loaderModule && load.metadata.loaderModule.fetch) {
-        load.metadata.scriptLoad = false;
-        return load.metadata.loaderModule.fetch.call(loader, load, function(load) {
-          return fetch.call(loader, load);
-        });
-      }
-      else {
-        return fetch.call(loader, load);
-      }
-    };
-  });
-
-  hook('translate', function(translate) {
-    return function(load) {
-      var loader = this;
-      if (load.metadata.loaderModule && load.metadata.loaderModule.translate)
-        return Promise.resolve(load.metadata.loaderModule.translate.call(loader, load)).then(function(result) {
-          if (typeof result == 'string')
-            load.source = result;
-          return translate.call(loader, load);
-        });
-      else
-        return translate.call(loader, load);
-    };
-  });
-
-  hook('instantiate', function(instantiate) {
-    return function(load) {
-      var loader = this;
-
-      /*
-       * Source map sanitization for load.metadata.sourceMap
-       * Used to set browser and build-level source maps for
-       * translated sources in a general way.
-       */
-      var sourceMap = load.metadata.sourceMap;
-
-      // if an object not a JSON string do sanitizing
-      if (sourceMap && typeof sourceMap == 'object') {
-        var originalName = load.name.split('!')[0];
-
-        // force set the filename of the original file
-        sourceMap.file = originalName + '!transpiled';
-
-        // force set the sources list if only one source
-        if (!sourceMap.sources || sourceMap.sources.length == 1)
-          sourceMap.sources = [originalName];
-        load.metadata.sourceMap = JSON.stringify(sourceMap);
-      }
-
-      if (load.metadata.loaderModule && load.metadata.loaderModule.instantiate)
-        return Promise.resolve(load.metadata.loaderModule.instantiate.call(loader, load)).then(function(result) {
-          load.metadata.format = 'defined';
-          load.metadata.execute = function() {
-            return result;
-          };
-          return instantiate.call(loader, load);
-        });
-      else
-        return instantiate.call(loader, load);
-    };
-  });
-
-})();
-/*
- * Alias Extension
- *
- * Allows a module to be a plain copy of another module by module name
- *
- * System.meta['mybootstrapalias'] = { alias: 'bootstrap' };
- *
- */
-(function() {
-  // aliases
-  hook('fetch', function(fetch) {
-    return function(load) {
-      var alias = load.metadata.alias;
-      var aliasDeps = load.metadata.deps || [];
-      if (alias) {
-        load.metadata.format = 'defined';
-        this.defined[load.name] = {
-          declarative: true,
-          deps: aliasDeps.concat([alias]),
-          declare: function(_export) {
-            return {
-              setters: [function(module) {
-                for (var p in module)
-                  _export(p, module[p]);
-              }],
-              execute: function() {}
-            };
-          }
-        };
-        return '';
-      }
-
-      return fetch.call(this, load);
-    };
-  });
-})();/*
- * Meta Extension
- *
- * Sets default metadata on a load record (load.metadata) from
- * loader.metadata via System.meta function.
- *
- *
- * Also provides an inline meta syntax for module meta in source.
- *
- * Eg:
- *
- * loader.meta({
- *   'my/module': { deps: ['jquery'] }
- *   'my/*': { format: 'amd' }
- * });
- * 
- * Which in turn populates loader.metadata.
- *
- * load.metadata.deps and load.metadata.format will then be set
- * for 'my/module'
- *
- * The same meta could be set with a my/module.js file containing:
- * 
- * my/module.js
- *   "format amd"; 
- *   "deps[] jquery";
- *   "globals.some value"
- *   console.log('this is my/module');
- *
- * Configuration meta always takes preference to inline meta.
- *
- * Multiple matches in wildcards are supported and ammend the meta.
- *
- *
- * The benefits of the function form is that paths are URL-normalized
- * supporting say
- *
- * loader.meta({ './app': { format: 'cjs' } });
- *
- * Instead of needing to set against the absolute URL (https://site.com/app.js)
- * 
- */
-
-(function() {
-
-  hookConstructor(function(constructor) {
-    return function() {
-      this.meta = {};
-      constructor.call(this);
-    };
-  });
-
-  hook('locate', function(locate) {
-    return function(load) {
-      var meta = this.meta;
-      var name = load.name;
-
-      // NB for perf, maybe introduce a fast-path wildcard lookup cache here
-      // which is checked first
-
-      // apply wildcard metas
-      var bestDepth = 0;
-      var wildcardIndex;
-      for (var module in meta) {
-        wildcardIndex = module.indexOf('*');
-        if (wildcardIndex === -1)
-          continue;
-        if (module.substr(0, wildcardIndex) === name.substr(0, wildcardIndex)
-            && module.substr(wildcardIndex + 1) === name.substr(name.length - module.length + wildcardIndex + 1)) {
-          var depth = module.split('/').length;
-          if (depth > bestDepth)
-            bestDetph = depth;
-          extendMeta(load.metadata, meta[module], bestDepth != depth);
-        }
-      }
-
-      // apply exact meta
-      if (meta[name])
-        extendMeta(load.metadata, meta[name]);
-
-      return locate.call(this, load);
-    };
-  });
-
-  // detect any meta header syntax
-  // only set if not already set
-  var metaRegEx = /^(\s*\/\*[^\*]*(\*(?!\/)[^\*]*)*\*\/|\s*\/\/[^\n]*|\s*"[^"]+"\s*;?|\s*'[^']+'\s*;?)+/;
-  var metaPartRegEx = /\/\*[^\*]*(\*(?!\/)[^\*]*)*\*\/|\/\/[^\n]*|"[^"]+"\s*;?|'[^']+'\s*;?/g;
-
-  function setMetaProperty(target, p, value) {
-    var pParts = p.split('.');
-    var curPart;
-    while (pParts.length > 1) {
-      curPart = pParts.shift();
-      target = target[curPart] = target[curPart] || {};
-    }
-    curPart = pParts.shift();
-    if (!(curPart in target))
-      target[curPart] = value;
-  }
-
-  hook('translate', function(translate) {
-    return function(load) {
-      // NB meta will be post-translate pending transpiler conversion to plugins
-      var meta = load.source.match(metaRegEx);
-      if (meta) {
-        var metaParts = meta[0].match(metaPartRegEx);
-
-        for (var i = 0; i < metaParts.length; i++) {
-          var curPart = metaParts[i];
-          var len = curPart.length;
-
-          var firstChar = curPart.substr(0, 1);
-          if (curPart.substr(len - 1, 1) == ';')
-            len--;
-        
-          if (firstChar != '"' && firstChar != "'")
-            continue;
-
-          var metaString = curPart.substr(1, curPart.length - 3);
-          var metaName = metaString.substr(0, metaString.indexOf(' '));
-
-          if (metaName) {
-            var metaValue = metaString.substr(metaName.length + 1, metaString.length - metaName.length - 1);
-
-            if (metaName.substr(metaName.length - 2, 2) == '[]') {
-              metaName = metaName.substr(0, metaName.length - 2);
-              load.metadata[metaName] = load.metadata[metaName] || [];
-            }
-
-            // temporary backwards compat for previous "deps" syntax
-            if (load.metadata[metaName] instanceof Array)
-              load.metadata[metaName].push(metaValue);
-            else
-              setMetaProperty(load.metadata, metaName, metaValue);
-          }
-          else {
-            load.metadata[metaString] = true;
-          }
-        }
-      }
-      
-      return translate.call(this, load);
-    };
-  });
-})();/*
-  System bundles
-
-  Allows a bundle module to be specified which will be dynamically 
-  loaded before trying to load a given module.
-
-  For example:
-  System.bundles['mybundle'] = ['jquery', 'bootstrap/js/bootstrap']
-
-  Will result in a load to "mybundle" whenever a load to "jquery"
-  or "bootstrap/js/bootstrap" is made.
-
-  In this way, the bundle becomes the request that provides the module
-*/
-
-(function() {
-  // bundles support (just like RequireJS)
-  // bundle name is module name of bundle itself
-  // bundle is array of modules defined by the bundle
-  // when a module in the bundle is requested, the bundle is loaded instead
-  // of the form System.bundles['mybundle'] = ['jquery', 'bootstrap/js/bootstrap']
-  hookConstructor(function(constructor) {
-    return function() {
-      constructor.call(this);
-      this.bundles = {};
-      this.loadedBundles_ = {};
-    };
-  });
-
-  function loadFromBundle(loader, bundle) {
-    return Promise.resolve(loader.normalize(bundle))
-    .then(function(normalized) {
-      loader.loadedBundles_[normalized] = true;
-      loader.bundles[normalized] = loader.bundles[normalized] || loader.bundles[bundle];
-      return loader.load(normalized);
-    })
-    .then(function() {
-      return '';
-    });
-  }
-
-  // assign bundle metadata for bundle loads
-  hook('locate', function(locate) {
-    return function(load) {
-      if (load.name in this.loadedBundles_ || load.name in this.bundles)
-        load.metadata.bundle = true;
-
-      return locate.call(this, load);
-    };
-  });
-
-  hook('fetch', function(fetch) {
-    return function(load) {
-      var loader = this;
-      if (loader.trace || loader.builder)
-        return fetch.call(loader, load);
-      
-      // if already defined, no need to load a bundle
-      if (load.name in loader.defined)
-        return '';
-
-      // check if it is in an already-loaded bundle
-      for (var b in loader.loadedBundles_) {
-        if (indexOf.call(loader.bundles[b], load.name) != -1)
-          return loadFromBundle(loader, b);
-      }
-
-      // check if it is a new bundle
-      for (var b in loader.bundles) {
-        if (indexOf.call(loader.bundles[b], load.name) != -1)
-          return loadFromBundle(loader, b);
-      }
-
-      return fetch.call(loader, load);
-    };
-  });
-})();
-/*
- * Dependency Tree Cache
- * 
- * Allows a build to pre-populate a dependency trace tree on the loader of 
- * the expected dependency tree, to be loaded upfront when requesting the
- * module, avoinding the n round trips latency of module loading, where 
- * n is the dependency tree depth.
- *
- * eg:
- * System.depCache = {
- *  'app': ['normalized', 'deps'],
- *  'normalized': ['another'],
- *  'deps': ['tree']
- * };
- * 
- * System.import('app') 
- * // simultaneously starts loading all of:
- * // 'normalized', 'deps', 'another', 'tree'
- * // before "app" source is even loaded
- */
-
-(function() {
-  hookConstructor(function(constructor) {
-    return function() {
-      constructor.call(this);
-      this.depCache = {};
-    }
-  });
-
-  hook('locate', function(locate) {
-    return function(load) {
-      var loader = this;
-      // load direct deps, in turn will pick up their trace trees
-      var deps = loader.depCache[load.name];
-      if (deps)
-        for (var i = 0; i < deps.length; i++)
-          loader['import'](deps[i]);
-
-      return locate.call(loader, load);
-    };
-  });
-})();
-  
-/*
- * Conditions Extension
- *
- *   Allows a condition module to alter the resolution of an import via syntax:
- *
- *     import $ from 'jquery/#{browser}';
- *
- *   Will first load the module 'browser' via `System.import('browser')` and 
- *   take the default export of that module.
- *   If the default export is not a string, an error is thrown.
- * 
- *   We then substitute the string into the require to get the conditional resolution
- *   enabling environment-specific variations like:
- * 
- *     import $ from 'jquery/ie'
- *     import $ from 'jquery/firefox'
- *     import $ from 'jquery/chrome'
- *     import $ from 'jquery/safari'
- *
- *   It can be useful for a condition module to define multiple conditions.
- *   This can be done via the `.` modifier to specify a member expression:
- *
- *     import 'jquery/#{browser.grade}'
- *
- *   Where the `grade` export of the `browser` module is taken for substitution.
- *
- *   Note that `/` and a leading `.` are not permitted within conditional modules
- *   so that this syntax can be well-defined.
- *
- *
- * Boolean Conditionals
- *
- *   For polyfill modules, that are used as imports but have no module value,
- *   a binary conditional allows a module not to be loaded at all if not needed:
- *
- *     import 'es5-shim#?conditions.needs-es5shim'
- *
- */
-(function() {
-
-  var conditionalRegEx = /#\{[^\}]+\}|#\?.+$/;
-
-  hookConstructor(function(constructor) {
-    return function() {
-      constructor.call(this);
-
-      // standard environment module, starting small as backwards-compat matters!
-      this.set('@system-env', this.newModule({
-        browser: isBrowser,
-        node: !!this._nodeRequire
-      }));
-    };
-  });
-
-  hook('normalize', function(normalize) {
-    return function(name, parentName, parentAddress) {
-      var loader = this;
-      var conditionalMatch = name.match(conditionalRegEx);
-      if (conditionalMatch) {
-        var substitution = conditionalMatch[0][1] != '?';
-        
-        var conditionModule = substitution ? conditionalMatch[0].substr(2, conditionalMatch[0].length - 3) : conditionalMatch[0].substr(2);
-
-        if (conditionModule[0] == '.' || conditionModule.indexOf('/') != -1)
-          throw new TypeError('Invalid condition ' + conditionalMatch[0] + '\n\tCondition modules cannot contain . or / in the name.');
-
-        var conditionExport;
-        var conditionExportIndex = conditionModule.indexOf('.');
-        if (conditionExportIndex != -1) {
-          conditionExport = conditionModule.substr(conditionExportIndex + 1);
-          conditionModule = conditionModule.substr(0, conditionExportIndex);
-        }
-
-        var booleanNegation = !substitution && conditionModule[0] == '~';
-        if (booleanNegation)
-          conditionModule = conditionModule.substr(1);
-
-        var pluginLoader = loader.pluginLoader || loader;
-        
-        return pluginLoader['import'](conditionModule, parentName, parentAddress)
-        .then(function(m) {
-          if (conditionExport === undefined) {
-            // CommonJS case
-            if (typeof m == 'string')
-              return m;
-            else
-              return m['default'];
-          }
-          
-          return readMemberExpression(conditionExport, m);
-        })
-        .then(function(conditionValue) {
-          if (substitution) {
-            if (typeof conditionValue !== 'string')
-              throw new TypeError('The condition value for ' + conditionModule + ' doesn\'t resolve to a string.');
-            name = name.replace(conditionalRegEx, conditionValue);
-          }
-          else {
-            if (typeof conditionValue !== 'boolean')
-              throw new TypeError('The condition value for ' + conditionModule + ' isn\'t resolving to a boolean.');
-            if (booleanNegation)
-              conditionValue = !conditionValue;
-            if (!conditionValue)
-              name = '@empty';
-            else
-              name = name.replace(conditionalRegEx, '');
-          }
-          return normalize.call(loader, name, parentName, parentAddress);
-        });
-      }
-
-      return Promise.resolve(normalize.call(loader, name, parentName, parentAddress));
-    };
-  });
-
-})();System = new SystemJSLoader();
-System.constructor = SystemJSLoader;  // -- exporting --
-
-  if (typeof exports === 'object')
-    module.exports = Loader;
-
-  __global.Reflect = __global.Reflect || {};
-  __global.Reflect.Loader = __global.Reflect.Loader || Loader;
-  __global.Reflect.global = __global.Reflect.global || __global;
-  __global.LoaderPolyfill = Loader;
-
-  if (!System) {
-    System = new SystemLoader();
-    System.constructor = SystemLoader;
-  }
-
-  if (typeof exports === 'object')
-    module.exports = System;
-
-  __global.System = System;
-
-})(typeof self != 'undefined' ? self : global);}
-
-// auto-load Promise and URL polyfills if needed in the browser
-try {
-  var hasURL = typeof URLPolyfill != 'undefined' || new URL('test:///').protocol == 'test:';
-}
-catch(e) {}
-
-if (typeof Promise === 'undefined' || !hasURL) {
-  // document.write
-  if (typeof document !== 'undefined') {
-    var scripts = document.getElementsByTagName('script');
-    $__curScript = scripts[scripts.length - 1];
-    var curPath = $__curScript.src;
-    var basePath = curPath.substr(0, curPath.lastIndexOf('/') + 1);
-    window.systemJSBootstrap = bootstrap;
-    document.write(
-      '<' + 'script type="text/javascript" src="' + basePath + 'system-polyfills.js">' + '<' + '/script>'
-    );
-  }
-  // importScripts
-  else if (typeof importScripts !== 'undefined') {
-    var basePath = '';
-    try {
-      throw new Error('_');
-    } catch (e) {
-      e.stack.replace(/(?:at|@).*(http.+):[\d]+:[\d]+/, function(m, url) {
-        basePath = url.replace(/\/[^\/]*$/, '/');
-      });
-    }
-    importScripts(basePath + 'system-polyfills.js');
-    bootstrap();
-  }
-  else {
-    bootstrap();
-  }
-}
-else {
-  bootstrap();
-}
-
-
-})();
+;
+//# sourceMappingURL=axios.map
