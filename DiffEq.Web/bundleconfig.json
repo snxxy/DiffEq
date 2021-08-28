@@ -2,16 +2,16 @@
   {
     "outputFileName": "wwwroot/dist/miscBundle.js",
     "inputFiles": [
+      "node_modules/mathjax/es5/tex-mml-chtml.js",
       "node_modules/jquery/dist/jquery.js",
       "node_modules/popper.js-lite/dist/umd/popper.js",
       "node_modules/bootstrap/dist/js/bootstrap.js",
-      "node_modules/systemjs/dist/system.src.js",
-      "node_modules/axios/dist/axios.js",
-      "node_modules/mathjax/tex-mml-chtml.js"
+      "node_modules/systemjs/dist/system.js",
+      "node_modules/axios/dist/axios.js"
     ],
     "minify": {
       "enabled": true,
-      "renameLocals": false
+      "renameLocals": true
     },
     "sourceMap": true
   },
@@ -72,7 +72,7 @@
   {
     "outputFileName": "wwwroot/dist/apptemplatesbundle.html",
     "inputFiles": [
-      "ClientApp/**/*.html"
+      "App/**/*.html"
     ],
     "minify": {
       "enabled": false,

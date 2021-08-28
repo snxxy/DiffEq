@@ -31,6 +31,8 @@
 
   <ItemGroup>
     <None Include="wwwroot\dist\appbundle.js" />
+    <None Include="wwwroot\dist\output\chtml.js" />
+    <None Include="wwwroot\dist\output\chtml\fonts\tex.js" />
   </ItemGroup>
 
   <ItemGroup>

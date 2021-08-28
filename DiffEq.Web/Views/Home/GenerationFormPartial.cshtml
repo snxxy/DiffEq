@@ -7,14 +7,16 @@
         <input v-model="sveq"
                type="number"
                name="sveq"
-               min="0">
+               min=0
+               defaultValue=1>
     </p>
     <p>
         <label for="hgeq">Homogeneous equations</label>
         <input v-model="hgeq"
                type="number"
                name="hgeq"
-               min="0">
+               min=0
+               defaultValue=1>
     </p>
     <p>
         <button v-on:click="sendGenOrder()">Start Gen</button>
