@@ -1,45 +1,49 @@
 ﻿using DiffEq.Generator.BinaryTree;
 using DiffEq.Generator.Misc;
+using DiffEq.Generator.GenerationConfigs;
 
 namespace DiffEq.Generator.Strats
 {
-    class HomogeneousTreeStrategy : IGenerationStrategy
+    public class HomogeneousTreeStrategy : IGenerationStrategy
     {
-        private RandomNumberGenerator rng = new RandomNumberGenerator();
+        IGenerationConfig genCfg;
         public string ExecuteTreeAlgorithm(string variable, int difficulty)
-        {           
-            if (difficulty%2 == 0)
-            {
-                difficulty++;
-            }
-            List<string> operators;
-
-            Random random = new Random();
-            operators = new List<string>() { "+", "-" };
-
+        {
+            var rngCustom = new RandomNumberGenerator();
+            var rngDefault = new Random();
             var tree = new BinaryTree<string>(difficulty);
+            var operatorsPossibleCount = (difficulty / 2) - 1;
 
-            for (int i = 0; i < difficulty / 2 - 1; i++)
+            if (!genCfg.IsTrigonometryEnabled)
             {
-                string toAdd = operators[random.Next(0, operators.Count - 1)];
+                if (difficulty % 2 == 0)
+                {
+                    difficulty++;
+                }
+            }                 
+
+            for (int i = 0; i < operatorsPossibleCount; i++)
+            {
+                var toAdd = genCfg.Operators[rngDefault.Next(0, genCfg.Operators.Count - 1)];
                 tree.Add(toAdd);
             }
 
             tree.Add("*" + "(" + variable + ")");
             for (int i = 0; i < difficulty / 2; i++)
             {
-                var varChance = random.Next(1, 3);
+                var varChance = rngDefault.Next(1, 3);
                 if (varChance == 1)
                 {
-                    tree.Add(rng.Generate(1, 5, 0).ToString() + "*" + "(" + variable + ")" + "**"  + random.Next(2, 5).ToString());
+                    tree.Add(rngCustom.Generate(1, 5, 0).ToString() + "*" + "(" + variable + ")" + "**"  + rngDefault.Next(2, 5).ToString());
                 }
                 else
                 {
-                    tree.Add(rng.Generate(1, 5, 0).ToString());
+                    tree.Add(rngCustom.Generate(1, 5, 0).ToString());
                 }
             }
-            List<string> eq = tree.InOrder(tree.Head);
-            int insertCounter = 0;
+
+            var eq = tree.InOrder(tree.Head);
+            var insertCounter = 0;
             for (int i = 0; i < eq.Count; i++)
             {
                 if (eq[i].Equals("*(") || eq[i].Equals("/("))
