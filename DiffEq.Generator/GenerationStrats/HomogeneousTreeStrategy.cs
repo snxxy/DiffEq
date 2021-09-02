@@ -7,6 +7,11 @@ namespace DiffEq.Generator.Strats
     public class HomogeneousTreeStrategy : IGenerationStrategy
     {
         IGenerationConfig genCfg;
+        public HomogeneousTreeStrategy()
+        {
+            genCfg = new HomogeneousTreeConfig();
+        }
+
         public string ExecuteTreeAlgorithm(string variable, int difficulty)
         {
             var rngCustom = new RandomNumberGenerator();
