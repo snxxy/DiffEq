@@ -8,7 +8,7 @@ namespace DiffEq.Generator.Handlers
     {
         public async Task<PyExpressionJson> ScrambleExpression(string expression, int maxVar)
         {
-            var client = new RestClient("http://127.0.0.1:5000/");
+            var client = new RestClient("http://127.0.0.1:5050/");
             var expr = new PyExpressionJson();
             expr.Expression = expression;
             expr.MaxVar = maxVar;
@@ -29,7 +29,7 @@ namespace DiffEq.Generator.Handlers
 
         public async Task<PyEquationJson> SolveEquation(PyEquationJson equation)
         {
-            var client = new RestClient("http://127.0.0.1:5000/");
+            var client = new RestClient("http://127.0.0.1:5050/");
             var jsonEquationString = JsonConvert.SerializeObject(equation);
             var request = new RestRequest("solve", Method.POST);
             request.RequestFormat = DataFormat.Json;
