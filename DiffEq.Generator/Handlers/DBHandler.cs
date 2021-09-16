@@ -1,5 +1,9 @@
 ﻿using DiffEq.DB;
 using DiffEq.Generator.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace DiffEq.Generator.Handlers
 {

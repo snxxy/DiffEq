@@ -2,6 +2,8 @@
 using DiffEq.Generator.Misc;
 using DiffEq.Generator.Models;
 using DiffEq.Generator.Strats;
+using System;
+using System.Threading.Tasks;
 
 namespace DiffEq.Generator.Managers
 {

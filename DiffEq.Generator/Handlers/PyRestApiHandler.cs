@@ -1,6 +1,7 @@
 ﻿using DiffEq.Generator.Models.JSON;
 using Newtonsoft.Json;
 using RestSharp;
+using System.Threading.Tasks;
 
 namespace DiffEq.Generator.Handlers
 {

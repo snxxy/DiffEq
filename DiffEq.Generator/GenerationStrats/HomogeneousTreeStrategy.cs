@@ -1,6 +1,7 @@
 ﻿using DiffEq.Generator.BinaryTree;
 using DiffEq.Generator.Misc;
 using DiffEq.Generator.GenerationConfigs;
+using System;
 
 namespace DiffEq.Generator.Strats
 {

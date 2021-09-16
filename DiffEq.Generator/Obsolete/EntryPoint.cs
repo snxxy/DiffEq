@@ -1,4 +1,6 @@
-﻿namespace DiffEq.Generator
+﻿using System;
+
+namespace DiffEq.Generator
 {
     [Obsolete]
     sealed class EntryPoint

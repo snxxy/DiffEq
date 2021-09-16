@@ -1,5 +1,7 @@
 ﻿using DiffEq.Generator.Models;
 using DiffEq.Generator.Models.JSON;
+using System;
+using System.Threading.Tasks;
 
 namespace DiffEq.Generator.Handlers
 {

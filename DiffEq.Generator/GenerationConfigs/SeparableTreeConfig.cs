@@ -1,4 +1,6 @@
-﻿namespace DiffEq.Generator.GenerationConfigs
+﻿using System.Collections.Generic;
+
+namespace DiffEq.Generator.GenerationConfigs
 {
     class SeparableTreeConfig : IGenerationConfig
     {

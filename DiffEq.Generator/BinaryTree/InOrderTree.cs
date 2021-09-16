@@ -1,4 +1,7 @@
-﻿namespace DiffEq.Generator.BinaryTree
+﻿using System;
+using System.Collections.Generic;
+
+namespace DiffEq.Generator.BinaryTree
 {
     class InOrderTree<T> : ITreeTraverse<T> where T : IComparable<T>
     {

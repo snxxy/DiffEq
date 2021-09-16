@@ -1,4 +1,6 @@
-﻿namespace DiffEq.Generator.BinaryTree
+﻿using System;
+
+namespace DiffEq.Generator.BinaryTree
 {
     class TreeNode<T> : IComparable<T> where T : IComparable<T>
     {

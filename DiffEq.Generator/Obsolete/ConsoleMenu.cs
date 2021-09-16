@@ -1,4 +1,7 @@
 ﻿using DiffEq.Generator.Services;
+using System;
+using System.Collections.Generic;
+using System.Threading;
 
 namespace DiffEq.Generator
 {

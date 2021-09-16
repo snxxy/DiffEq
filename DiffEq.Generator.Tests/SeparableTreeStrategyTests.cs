@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using DiffEq.Generator.Strats;
+using System;
 
 namespace DiffEq.Generator.Tests;
 public class Tests
