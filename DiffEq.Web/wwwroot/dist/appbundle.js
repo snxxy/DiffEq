@@ -107,6 +107,11 @@ System.register("Components/TestComponent", ["axios", "MathJax", "vue"], functio
                 emits: {},
                 setup(props, { emit }) {
                     const equations = vue_3.ref([]);
+                    const userSolutions = vue_3.ref([]);
+                    const userScore = vue_3.ref(0);
+                    const solutionResults = vue_3.ref([]);
+                    const solutionsChecked = vue_3.ref(false);
+                    const equationsTotal = vue_3.ref(0);
                     function refreshJax() {
                         MathJax_1.default.typesetClear();
                         MathJax_1.default.typeset();
@@ -122,13 +127,38 @@ System.register("Components/TestComponent", ["axios", "MathJax", "vue"], functio
                         })
                             .then(response => {
                             equations.value = response.data;
+                            console.log(response.data);
+                            equationsTotal.value = equations.value.length;
                             setTimeout(() => refreshJax(), 500);
                         })
                             .catch(function (error) {
                             console.log(error);
                         });
                     }
+                    function checkButtonPress() {
+                        solutionsChecked.value = true;
+                        userScore.value = 0;
+                        for (var i = 0; i < equations.value.length; i++) {
+                            if (equations.value[i].solution == userSolutions.value[i]) {
+                                userScore.value++;
+                                solutionResults.value[i] = "Ok";
+                            }
+                            else {
+                                solutionResults.value[i] = "Wrong";
+                            }
+                        }
+                    }
+                    function resetControlsState() {
+                        solutionsChecked.value = false;
+                        while (userSolutions.value.length > 0) {
+                            userSolutions.value.pop();
+                        }
+                        while (solutionResults.value.length > 0) {
+                            solutionResults.value.pop();
+                        }
+                    }
                     function isPressedWatcherCheck() {
+                        resetControlsState();
                         if (props.isenabled) {
                             sendGetEqOrder(props.typeonecount, props.typetwocount);
                         }
@@ -137,7 +167,13 @@ System.register("Components/TestComponent", ["axios", "MathJax", "vue"], functio
                     return {
                         refreshJax,
                         sendGetEqOrder,
-                        equations
+                        equations,
+                        checkButtonPress,
+                        solutionResults,
+                        userScore,
+                        solutionsChecked,
+                        equationsTotal,
+                        userSolutions
                     };
                 },
                 template: "#test-template"

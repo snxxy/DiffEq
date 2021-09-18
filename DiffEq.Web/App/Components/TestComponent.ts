@@ -1,6 +1,6 @@
 ﻿import axios from "axios"
 import MathJax from "MathJax"
-import { ref, watch } from "vue"
+import { computed, onUnmounted, ref, watch } from "vue"
 import { defineComponent } from "vue"
 
 export default defineComponent({
@@ -24,6 +24,11 @@ export default defineComponent({
     emits: {},
     setup(props, { emit }) {
         const equations = ref([])
+        const userSolutions = ref([])
+        const userScore = ref(0)
+        const solutionResults = ref([])
+        const solutionsChecked = ref(false)
+        const equationsTotal = ref(0)
 
         function refreshJax() {
             MathJax.typesetClear()
@@ -41,6 +46,8 @@ export default defineComponent({
             })
                 .then(response => {
                     equations.value = response.data
+                    console.log(response.data)
+                    equationsTotal.value = equations.value.length
                     setTimeout(() => refreshJax(), 500)
                 })
                 .catch(function (error) {
@@ -48,7 +55,33 @@ export default defineComponent({
                 })
         }
 
+
+        function checkButtonPress() {
+            solutionsChecked.value = true
+            userScore.value = 0
+            for (var i = 0; i < equations.value.length; i++) {
+                if (equations.value[i].solution == userSolutions.value[i]) {
+                    userScore.value++
+                    solutionResults.value[i] = "Ok"
+                }
+                else {
+                    solutionResults.value[i] = "Wrong"
+                }
+            }
+        }
+
+        function resetControlsState() {
+            solutionsChecked.value = false
+            while (userSolutions.value.length > 0) {
+                userSolutions.value.pop()
+            }
+            while (solutionResults.value.length > 0) {
+                solutionResults.value.pop()
+            }           
+        }
+
         function isPressedWatcherCheck() {
+            resetControlsState()
             if (props.isenabled) {
                 sendGetEqOrder(props.typeonecount, props.typetwocount)
             }
@@ -58,7 +91,13 @@ export default defineComponent({
         return {
             refreshJax,
             sendGetEqOrder,
-            equations
+            equations,
+            checkButtonPress,
+            solutionResults,
+            userScore,
+            solutionsChecked,
+            equationsTotal,
+            userSolutions
         }
     },
     template: "#test-template"

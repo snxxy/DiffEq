@@ -36,7 +36,7 @@
                                min=0
                                defaultValue=0>
                     </p>
-                    <button class="btn-success" type="submit">            Start Test</button>
+                    <button class="btn btn-success" type="submit">Start Test</button>
                 </form>
             </div>
         </div>
@@ -87,7 +87,7 @@
                            min=0
                            defaultValue=0>
                 </p>
-                <button class="btn-success" type="submit">Start Gen</button>
+                <button class="btn btn-success" type="submit">Start Gen</button>
             </form>
         </div>
     </div>
@@ -109,14 +109,22 @@
     <test-component :isenabled="isRandomTestEnabled"></test-component>
 </template>
 <template id="test-template">
-    <div v-if="isenabled">
+    <div v-if="isenabled" class="card-body">
         <ul id="MathStuff">
             <li v-for="(item, index) in equations" style="list-style: none;">
                 <p>
                     $${{item.equationLatex}}$$
-                    <span>Solution: </span><input type="text" style="width: 500px;">
+                    <div>
+                        Solution: 
+                        <span v-if="solutionsChecked">{{solutionResults[index]}}</span>
+                    </div>                   
+                    <input type="text" class="form-control" v-model="userSolutions[index]">
                 </p>
             </li>
-        </ul>
+        </ul>       
+        <div class="text-center">
+            <div v-if="solutionsChecked">{{userScore}}/{{equationsTotal}}</div>
+            <button class="btn btn-success" @click="checkButtonPress">Check</button>
+        </div>
     </div>
 </template>
