@@ -33,8 +33,9 @@ namespace DiffEq.Generator.Handlers
         public async Task<IEnumerable<IEquation>> GetEquations(Dictionary<int, int> pairs)
         {
             var db = new DiffEqDB();
-            var type1res = await db.GetEquationList(2, 1);
-            var type2res = await db.GetEquationList(2, 2);
+            //needs refactor
+            var type1res = await db.GetEquationList(pairs[1], 1);
+            var type2res = await db.GetEquationList(pairs[2], 2);
             var result = MapDaoToDto((type1res).Union(type2res));
             return result;
         }

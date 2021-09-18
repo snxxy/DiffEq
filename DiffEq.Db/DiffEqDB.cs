@@ -139,22 +139,14 @@ namespace DiffEq.DB
         public async Task<IEnumerable<Equation>> GetEquationList(int count, int type)
         {
             var result = new List<Equation>();
-            var eq = new Equation();
             var rand = new Random();
 
             var countType = await CountByType(type);
             using (var context = new Context())
             {
-                var eqs = context.Equation.Where(a => a.Type == type).Take(countType);
-                foreach (var equat in eqs)
+                for (int i = 0; i < count; i++)
                 {
-                    result.Add(equat);
-                }
-
-                var toDelete = countType - count;
-                for (int i = 0; i < toDelete; i++)
-                {
-                    result.RemoveAt(rand.Next(0, result.Count() - 1));
+                    result.Add(await context.Equation.Where(a => a.Type == type).Take(countType).Skip(rand.Next(0, countType)).Take(1).FirstOrDefaultAsync());
                 }
             }
             return result;
