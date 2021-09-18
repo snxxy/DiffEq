@@ -1,12 +1,14 @@
 # DiffEq
 .NET 6 Preview
+Typescript
 Vue3
 Python 3.9 + Flask + SymPy 1.8
 ## ToDo:
 * Fix logger crash
 * Fix scrambler
-* Use systemjs injections
+* Fix systemjs injection race conditions
 * Tune bundling
-* Web overhaul, proper css and templates
 * Update generation algos
-* Proper solution checks
+* More sophisticated solution checker
+* Stats page with login functionality
+* Better visuals (css, templates) - lowest priority
