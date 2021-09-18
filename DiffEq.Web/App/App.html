@@ -1,0 +1,10 @@
+﻿<template id="app-index-template">
+    <div class="carousel-dark text-center">
+        <nav-button-bar-component @button-press-emit="buttonPressed"></nav-button-bar-component>
+    </div>
+    <default-index-component :isenabled="buttonPressedCode === 0 ? true: false"></default-index-component>
+    <generation-component :ispressed="buttonPressedCode === 1 ? true : false"></generation-component>
+    <random-test-component :ispressed="buttonPressedCode === 2 ? true : false"></random-test-component>
+    <custom-test-component 
+                           :ispressed="buttonPressedCode === 3 ? true : false"></custom-test-component>
+</template>

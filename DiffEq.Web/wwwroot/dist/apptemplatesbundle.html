@@ -1,0 +1,122 @@
+<template id="app-index-template">
+    <div class="carousel-dark text-center">
+        <nav-button-bar-component @button-press-emit="buttonPressed"></nav-button-bar-component>
+    </div>
+    <default-index-component :isenabled="buttonPressedCode === 0 ? true: false"></default-index-component>
+    <generation-component :ispressed="buttonPressedCode === 1 ? true : false"></generation-component>
+    <random-test-component :ispressed="buttonPressedCode === 2 ? true : false"></random-test-component>
+    <custom-test-component 
+                           :ispressed="buttonPressedCode === 3 ? true : false"></custom-test-component>
+</template>
+<template id="custom-test-template">
+    <div v-if="isSetupEnabled">
+        <div v-if="!isTestStarted">
+            <div class="card-header text-center">
+                Equations in database: {{equationTotal}} (Separable: {{equationCountByType[0]}}, Homogeneous: {{equationCountByType[1]}} )
+            </div>
+            <div class="card-body">
+                <form @submit.prevent="validateAndSend">
+                    <p v-if="errors.length">
+                        <ul>
+                            <li v-for="item in errors">{{ item }}</li>
+                        </ul>
+                    </p>
+                    <p>
+                        <label for="sveq">Separable variables equations </label>
+                        <input v-model="sveq"
+                               type="number"
+                               name="sveq"
+                               min=0
+                               defaultValue=0>
+                    </p>
+                    <p>
+                        <label for="hgeq">Homogeneous equations </label>
+                        <input v-model="hgeq"
+                               type="number"
+                               min=0
+                               defaultValue=0>
+                    </p>
+                    <button class="btn-success" type="submit">            Start Test</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <test-component :isenabled="isTestStarted"
+                    :typeonecount="sveq"
+                    :typetwocount="hgeq"></test-component>
+</template>
+<template id="default-index-template">
+    <div v-if="isenabled">
+        <div class="card-header text-center">
+            DiffEq
+        </div>
+        <div class="card-body">
+            <p>
+                Simple web interface for differrential equation generator with "Test" features.
+            </p>
+            <p>
+                Made for learning purposes. Use at you own peril.
+            </p>
+        </div>
+    </div>
+</template>
+<template id="generation-template">
+    <div v-if="ispressed">
+        <div class="card-header text-center">
+            Equations in database: {{equationTotal}} (Separable: {{equationCountByType[0]}}, Homogeneous: {{equationCountByType[1]}} )
+        </div>
+        <div class="card-body">
+            <form @submit.prevent="validateAndSend">
+                <p v-if="errors.length">
+                    <ul>
+                        <li v-for="item in errors">{{ item }}</li>
+                    </ul>
+                </p>
+                <p>
+                    <label for="sveq">Separable variables equations </label>
+                    <input v-model="sveq"
+                           type="number"
+                           name="sveq"
+                           min=0
+                           defaultValue=0>
+                </p>
+                <p>
+                    <label for="hgeq">Homogeneous equations </label>
+                    <input v-model="hgeq"
+                           type="number"
+                           min=0
+                           defaultValue=0>
+                </p>
+                <button class="btn-success" type="submit">Start Gen</button>
+            </form>
+        </div>
+    </div>
+</template>
+<template id="nav-button-bar-template">
+    <div class="btn-group btn-group-justified" role="group">
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-primary" @click = "buttonPressed(1)">Generate Equations</button>
+        </div>
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-primary" @click = "buttonPressed(2)">Random Test</button>
+        </div>
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-primary" @click = "buttonPressed(3)">Custom Test</button>
+        </div>
+    </div>
+</template>
+<template id="random-test-template">
+    <test-component :isenabled="isRandomTestEnabled"></test-component>
+</template>
+<template id="test-template">
+    <div v-if="isenabled">
+        <ul id="MathStuff">
+            <li v-for="(item, index) in equations" style="list-style: none;">
+                <p>
+                    $${{item.equationLatex}}$$
+                    <span>Solution: </span><input type="text" style="width: 500px;">
+                </p>
+            </li>
+        </ul>
+    </div>
+</template>

@@ -22,19 +22,20 @@ namespace DiffEq.Web.Controllers
             return result;
         }
 
+        [Route("[action]/")]
         [HttpPost]
-        public async Task GenerateEquationOrder([FromBody] GenerateOrderRequest order)
+        public async Task GenerateEquationOrder(GenerateOrderRequest order)
         {
             var generator = new EquationGeneratorService();
-            await generator.GenerationOrder(new Dictionary<int, int>() { { 1, Convert.ToInt32(order.Sveq) }, { 2, Convert.ToInt32(order.Hgeq) } });
+            await generator.GenerationOrder(new Dictionary<int, int>() { { 1, order.Sveq }, { 2, order.Hgeq } });
         }
 
         [Route("[action]/")]
-        [HttpGet]
-        public async Task<IEnumerable<IEquation>> GetEquationsToSolve()
+        [HttpPost]
+        public async Task<IEnumerable<IEquation>> GetEquationsToSolve(GenerateOrderRequest order)
         {
-            var generator = new EquationDBService();
-            var result = await generator.GetEquations(new Dictionary<int, int>() { { 1, 2 }, { 2, 2 } });
+            var dBService = new EquationDBService();
+            var result = await dBService.GetEquations(new Dictionary<int, int>() { { 1, order.Sveq }, { 2, order.Hgeq } });
             return result;
         }
     }

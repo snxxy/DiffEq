@@ -1,0 +1,17 @@
+﻿{
+  "compilerOptions": {
+    "noImplicitAny": false,
+    "noEmitOnError": true,
+    "removeComments": false,
+    "sourceMap": true,
+    "target": "ES2015",
+    "module": "System",
+    "jsx": "preserve",
+    "outFile": "wwwroot/dist/appBundle.js",
+    "moduleResolution": "node",
+    "esModuleInterop": true
+  },
+  "include": [
+    "./App/**/*.ts"
+  ]
+}

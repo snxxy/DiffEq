@@ -2,12 +2,11 @@
   {
     "outputFileName": "wwwroot/dist/miscBundle.js",
     "inputFiles": [
-      "node_modules/mathjax/es5/tex-mml-chtml.js",
+      "node_modules/systemjs/dist/system.js",
+      "node_modules/systemjs/dist/extras/named-register.js",
       "node_modules/jquery/dist/jquery.js",
       "node_modules/popper.js-lite/dist/umd/popper.js",
-      "node_modules/bootstrap/dist/js/bootstrap.js",
-      "node_modules/systemjs/dist/system.js",
-      "node_modules/axios/dist/axios.js"
+      "node_modules/bootstrap/dist/js/bootstrap.js"
     ],
     "minify": {
       "enabled": true,
@@ -45,6 +44,28 @@
     "sourceMap": true
   },
   {
+    "outputFileName": "wwwroot/dist/axiBundle.js",
+    "inputFiles": [
+      "node_modules/axios/dist/axios.js"
+    ],
+    "minify": {
+      "enabled": true,
+      "renameLocals": true
+    },
+    "sourceMap": true
+  },
+  {
+    "outputFileName": "wwwroot/dist/jaxBundle.js",
+    "inputFiles": [
+      "node_modules/mathjax/es5/tex-mml-chtml.js"
+    ],
+    "minify": {
+      "enabled": true,
+      "renameLocals": true
+    },
+    "sourceMap": true
+  },
+  {
     "outputFileName": "wwwroot/dist/main.css",
     "inputFiles": [
       "App/**/*.css"
@@ -54,15 +75,9 @@
     }
   },
   {
-    "outputFileName": "wwwroot/dist/appbundle.js",
-    "inputFiles": [
-      "App/**/*.js"
-    ]
-  },
-  {
     "outputFileName": "wwwroot/dist/appbundle.min.js",
     "inputFiles": [
-      "wwwroot/dist/appbundle.js"
+      "wwwroot/dist/appBundle.js"
     ],
     "minify": {
       "enabled": true,

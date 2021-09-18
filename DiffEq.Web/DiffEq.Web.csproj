@@ -1,36 +1,29 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
     <UserSecretsId>aspnet-DiffEq.Web-9F1735E5-E035-451F-9669-86164B9EECB3</UserSecretsId>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Content Remove="wwwroot\dist\appbundle.js" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Remove="App\index.ts" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <_ContentIncludedByDefault Remove="wwwroot\dist\appbundle.js" />
-  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="6.0.0-preview.7.21378.6" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="6.0.0-preview.7.21378.6" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="6.0.0-preview.7.21378.6" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="6.0.0-preview.7.21378.4" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="6.0.0-preview.7.21378.4" />
+    <PackageReference Include="Microsoft.TypeScript.MSBuild" Version="4.4.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="6.0.0-preview.7.21413.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="App\html\" />
+    <Folder Include="Views\ScaffoldedIdentity\" />
+    <Folder Include="Views\Stats\" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="wwwroot\dist\appbundle.js" />
     <None Include="wwwroot\dist\output\chtml.js" />
     <None Include="wwwroot\dist\output\chtml\fonts\tex.js" />
   </ItemGroup>

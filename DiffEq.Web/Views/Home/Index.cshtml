@@ -1,35 +1,44 @@
-﻿@* Views/Home/Index.cshtml *@
+﻿@using Microsoft.AspNetCore.Hosting
+@using Microsoft.Extensions.Hosting
+@* Views/Home/Index.cshtml *@
 
 @inject IWebHostEnvironment hostingEnv
 @{
+    var vueUrl = hostingEnv.IsDevelopment() ? "/dist/mainBundle.js" : "/dist/mainBundle.min.js";
+    var mainUrl = hostingEnv.IsDevelopment() ? "/dist/appBundle.js" : "/dist/appBundle.min.js";
+    var axiUrl = hostingEnv.IsDevelopment() ? "/dist/axiBundle.js" : "/dist/axiBundle.min.js";
+    var jaxUrl = hostingEnv.IsDevelopment() ? "/dist/jaxBundle.js" : "/dist/jaxBundle.min.js";
+
     ViewData["Title"] = "DiffEq";
 }
 
-<div class="text-center">
-    <div id="vueEntry">
-        <button v-on:click="genFormSpawn = !genFormSpawn; testSpawn = false">Generate</button>
-        <button v-on:click="toggleTestBtn()">Random Test</button>
-        <button v-on:click="getEquationCount()">Refresh Count</button>
-        <ul id="EqsCount" style="list-style: none;">
-            <li v-for="(item, index) in equationCount">
-                Type {{index + 1}} equations in DB: {{ item }}
-            </li>
-        </ul>
-        <div>
-            @{
-                await Html.RenderPartialAsync("GenerationFormPartial");
-                await Html.RenderPartialAsync("TestPartial");
-            }
-        </div>
-    </div>
+<div v-cloak>
+    <section id="app-templates"></section>
+    <div id="app">loading</div>
 </div>
 
-
-<environment include="Development">
-    <script src="~/dist/mainBundle.js"></script>
-    <script src="~/dist/appbundle.js"></script>
-</environment>
-<environment exclude="Development">
-    <script src="~/dist/miscBundle.min.js"></script>
-    <script src="~/dist/appbundle.min.js"></script>
-</environment>
+@section Scripts{
+    <script type="systemjs-importmap">
+    {
+        "imports": {
+            "vue": "@vueUrl",
+            "axios": "@axiUrl",
+            "MathJax": "@jaxUrl"
+        },
+        "depcache": {
+            "@vueUrl":["@axiUrl"],
+            "@axiUrl":["@jaxUrl"]
+        }
+    }
+    </script>
+    <script>   
+    Object.getPrototypeOf(System).firstGlobalProp = true
+    System.import('vue')
+    .then(()=>$.get("dist/apptemplatesbundle.html").done(function (data) {
+        $('#app-templates').append(data);
+        System.import('@mainUrl').then(function (m) {
+            System.import('main');
+        });
+    }));
+    </script>
+}

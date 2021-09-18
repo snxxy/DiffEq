@@ -17,26 +17,33 @@
 </head>
 <body>
     <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
-        <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">Logo</a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsDefault"
                 aria-controls="navbarsDefault" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarsDefault">
             <ul class="navbar-nav mr-auto">
-                <li class="nav-item"><a class="nav-link" asp-area="" asp-controller="Home" asp-action="Index">Home</a></li>
-                <li class="nav-item"><a class="nav-link" asp-area="" asp-controller="Home" asp-action="About">About</a></li>
-                <li class="nav-item"><a class="nav-link" asp-area="" asp-controller="Home" asp-action="Contact">Contact</a></li>
+                <li class="nav-item"><a class="nav-link" asp-area="" asp-controller="Home" asp-action="Index">Home</a></li>               
             </ul>
         </div>
+    @*<partial name="_LoginPartial" />*@
     </nav>
     <main role="main" class="container">
-        @RenderBody()
-        <hr />
-        <footer>
-            <p>&copy; 2021 - DiffEq</p>
-        </footer>
+        <div class="card">
+            @RenderBody()
+            <div class="card-footer">
+                <footer>
+                    <p>&copy; 2021 - DiffEq</p>
+                </footer>
+            </div>
+        </div>
     </main>
+
+    <environment include="Development">
+    </environment>
+    <environment exclude="Development">
+    </environment>
+
     @RenderSection("Scripts", required: false)
 </body>
 </html>

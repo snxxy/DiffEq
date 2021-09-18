@@ -2,7 +2,7 @@
 {
     public class GenerateOrderRequest
     {
-        public string Sveq { get; set; }
-        public string Hgeq { get; set; }
+        public int Sveq { get; set; }
+        public int Hgeq { get; set; }
     }
 }

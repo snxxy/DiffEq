@@ -1,0 +1,12 @@
+﻿<template id="test-template">
+    <div v-if="isenabled">
+        <ul id="MathStuff">
+            <li v-for="(item, index) in equations" style="list-style: none;">
+                <p>
+                    $${{item.equationLatex}}$$
+                    <span>Solution: </span><input type="text" style="width: 500px;">
+                </p>
+            </li>
+        </ul>
+    </div>
+</template>

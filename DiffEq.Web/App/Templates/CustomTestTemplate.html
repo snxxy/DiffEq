@@ -1,0 +1,37 @@
+﻿<template id="custom-test-template">
+    <div v-if="isSetupEnabled">
+        <div v-if="!isTestStarted">
+            <div class="card-header text-center">
+                Equations in database: {{equationTotal}} (Separable: {{equationCountByType[0]}}, Homogeneous: {{equationCountByType[1]}} )
+            </div>
+            <div class="card-body">
+                <form @submit.prevent="validateAndSend">
+                    <p v-if="errors.length">
+                        <ul>
+                            <li v-for="item in errors">{{ item }}</li>
+                        </ul>
+                    </p>
+                    <p>
+                        <label for="sveq">Separable variables equations </label>
+                        <input v-model="sveq"
+                               type="number"
+                               name="sveq"
+                               min=0
+                               defaultValue=0>
+                    </p>
+                    <p>
+                        <label for="hgeq">Homogeneous equations </label>
+                        <input v-model="hgeq"
+                               type="number"
+                               min=0
+                               defaultValue=0>
+                    </p>
+                    <button class="btn-success" type="submit">            Start Test</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <test-component :isenabled="isTestStarted"
+                    :typeonecount="sveq"
+                    :typetwocount="hgeq"></test-component>
+</template>
