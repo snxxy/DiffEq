@@ -108,17 +108,18 @@ System.register("Components/TestComponent", ["axios", "MathJax", "vue"], functio
                 setup(props, { emit }) {
                     const equations = vue_3.ref([]);
                     const userSolutions = vue_3.ref([]);
-                    const userScore = vue_3.ref(0);
+                    const checkerObject = vue_3.ref([]);
                     const solutionResults = vue_3.ref([]);
                     const solutionsChecked = vue_3.ref(false);
                     const equationsTotal = vue_3.ref(0);
+                    const userScore = vue_3.ref(0);
                     function refreshJax() {
                         MathJax_1.default.typesetClear();
                         MathJax_1.default.typeset();
                     }
                     function sendGetEqOrder(typeOneCount, typeTwoCount) {
                         axios_2.default({
-                            method: 'POST',
+                            method: "POST",
                             url: 'https://localhost:5001/api/homeapi/getequationstosolve',
                             data: {
                                 "sveq": typeOneCount,
@@ -135,26 +136,55 @@ System.register("Components/TestComponent", ["axios", "MathJax", "vue"], functio
                             console.log(error);
                         });
                     }
-                    function checkButtonPress() {
-                        solutionsChecked.value = true;
-                        userScore.value = 0;
-                        for (var i = 0; i < equations.value.length; i++) {
-                            if (equations.value[i].solution == userSolutions.value[i]) {
-                                userScore.value++;
-                                solutionResults.value[i] = "Ok";
+                    function fillCheckerObject() {
+                        for (var i = 0; i < equationsTotal.value; i++) {
+                            checkerObject.value.push({
+                                userSolution: userSolutions.value[i],
+                                realSolution: equations.value[i].solution
+                            });
+                        }
+                    }
+                    function sendSolutionsForCheck() {
+                        console.log("sending check");
+                        console.log(checkerObject.value);
+                        axios_2.default({
+                            method: "POST",
+                            url: "https://localhost:5001/api/homeapi/checksolutions",
+                            data: {
+                                "solutions": checkerObject.value
                             }
-                            else {
-                                solutionResults.value[i] = "Wrong";
+                        })
+                            .then(response => {
+                            console.log("got response");
+                            console.log(response.data);
+                            solutionResults.value = response.data;
+                        })
+                            .catch(error => {
+                            console.log(error);
+                        });
+                    }
+                    function checkButtonPress() {
+                        userScore.value = 0;
+                        fillCheckerObject();
+                        sendSolutionsForCheck();
+                        for (var i = 0; i < solutionResults.value.length; i++) {
+                            if (solutionResults[i].value == true) {
+                                userScore.value++;
                             }
                         }
+                        solutionsChecked.value = true;
                     }
                     function resetControlsState() {
                         solutionsChecked.value = false;
+                        userScore.value = 0;
                         while (userSolutions.value.length > 0) {
                             userSolutions.value.pop();
                         }
                         while (solutionResults.value.length > 0) {
                             solutionResults.value.pop();
+                        }
+                        while (checkerObject.value.length > 0) {
+                            checkerObject.value.pop();
                         }
                     }
                     function isPressedWatcherCheck() {

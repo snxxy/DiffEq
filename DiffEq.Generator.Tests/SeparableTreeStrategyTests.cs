@@ -3,7 +3,8 @@ using DiffEq.Generator.Strats;
 using System;
 
 namespace DiffEq.Generator.Tests;
-public class Tests
+[TestFixture]
+public class SeparableTreeStrategyTests
 {
     private SeparableTreeStrategy separableInstance;
     [SetUp]
@@ -13,7 +14,7 @@ public class Tests
     }
 
     [Test]
-    public void TestEquationGenerationEqualBrackets()
+    public void ExecuteTreeAlgorithm_ReturnsEqualBrackets()
     {
         var result = separableInstance.ExecuteTreeAlgorithm("x", 6);
         var openBracketCount = 0;
@@ -29,12 +30,11 @@ public class Tests
                 closeBracketCount++;
             }
         }
-        Console.WriteLine(result);
-        Assert.AreEqual(openBracketCount, closeBracketCount);
+        Assert.That(openBracketCount, Is.EqualTo(closeBracketCount));
     }
 
     [Test]
-    public void TestEquationGenerationBracketsNotZero()
+    public void ExecuteTreeAlgorithm_ReturnsPositiveBrackets()
     {
         var result = separableInstance.ExecuteTreeAlgorithm("x", 6);
         var openBracketCount = 0;

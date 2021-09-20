@@ -1,6 +1,8 @@
 ﻿using DiffEq.Generator.Models.JSON;
+using DiffEq.Generator.Models.Solution;
 using Newtonsoft.Json;
 using RestSharp;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace DiffEq.Generator.Handlers
@@ -44,5 +46,27 @@ namespace DiffEq.Generator.Handlers
             }
             return null;
         }
+
+        public async Task<Solution> CheckExpressions(Solution toCheck)
+        {
+            var client = new RestClient("http://127.0.0.1:5050/");
+            var jsonExpressionsString = JsonConvert.SerializeObject(toCheck);
+            var request = new RestRequest("check", Method.POST);
+            request.RequestFormat = DataFormat.Json;
+            request.AddJsonBody(jsonExpressionsString);
+            System.Console.WriteLine("sending: "+jsonExpressionsString);
+            var response = await client.ExecuteAsync(request);
+
+            if (response.ResponseStatus == ResponseStatus.Completed)
+            {
+                var result = JsonConvert.DeserializeObject<Solution>(response.Content);
+                System.Console.WriteLine("returned");
+                System.Console.WriteLine(result.UserSolution);
+                System.Console.WriteLine(result.RealSolution);
+                return result;
+            }
+            return null;
+        }
+
     }
 }

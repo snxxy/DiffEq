@@ -9,9 +9,6 @@ namespace DiffEq.Generator.Services
 {
     public class EquationGeneratorService
     {
-
-        private List<IEquation> Cache = new List<IEquation>();
-
         public async Task<int> GenerationOrder(Dictionary<int, int> pairs, bool useDb = true)
         {
             var Cache = new List<IEquation>();
@@ -48,6 +45,7 @@ namespace DiffEq.Generator.Services
             catch (NotImplementedException e)
             {
                 //log e
+                //refactor returns/null objects
                 return -1;
             }
         }

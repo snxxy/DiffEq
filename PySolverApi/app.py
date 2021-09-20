@@ -1,6 +1,7 @@
 from flask import Flask, json, request, jsonify
 from sympy import *
 from sympy.parsing.sympy_parser import parse_expr
+from sympy.abc import x,y
 
 import json
 import jsonpickle
@@ -18,6 +19,12 @@ class Expression:
     def __init__(self, expression, maxVar):
         self.Expression = expression
         self.MaxVar = maxVar
+
+class CheckExpr:
+    def __init__(self, leftSide, rightSide, isUserSolutionTrue):
+        self.LeftSide = leftSide
+        self.RightSide = rightSide
+        self.IsUserSolutionTrue = isUserSolutionTrue
     
 
 def UseSympyToSolve(left, right):
@@ -26,8 +33,6 @@ def UseSympyToSolve(left, right):
     dydx = y.diff(x)
     parsedLeft = parse_expr(left)
     parsedRight = parse_expr(right)
-    print(parsedLeft)
-    print(parsedRight)
     expr = Eq(parsedLeft, dydx)
     toLatex = latex(expr)
     sol = dsolve(expr, simplify=False)
@@ -47,27 +52,47 @@ def UseSympyToScramble(equation, maxVar):
     expression = Expression(exprStr, maxVar)
     return expression
 
+def UseSympyToCheck(leftSide, rightSide, isTrue):
+    parsedLeft = parse_expr(leftSide)
+    parsedRight = parse_expr(rightSide)
+    isTrue = parsedLeft.equals(parsedRight)
+    checkExpression = CheckExpr(leftSide, rightSide, isTrue)
+    return checkExpression
+
+
 
 api = Flask(__name__)
 
 
 @api.route('/solve', methods=['POST'])
 def GetSolved():
+    print("solver api called")
     data = request.get_json()
     left = data.get('LeftSide')
-    print(left)
     right = data.get('RightSide')
-    print(right)
     result = UseSympyToSolve(left, right)
     eqJSON = jsonpickle.encode(result, unpicklable=False)
+    print("equation solved")
     return eqJSON
 
 @api.route('/scramble', methods=['POST'])
 def GetScrambled():
+    print("scramble api called")
     data = request.get_json()
     left = data.get('Expression')
     maxVar = data.get('MaxVar')
     result = UseSympyToScramble(left, maxVar)
+    exJSON = jsonpickle.encode(result, unpicklable=False)
+    return exJSON
+
+@api.route('/check', methods=['POST'])
+def GetChecked():
+    print("check api called")
+    data = request.get_json()
+    left = data.get('UserSolution')
+    right = data.get('RealSolution')
+    istrue = data.get('isUserSolutionTrue')
+    result = UseSympyToCheck(left, right, istrue)
     exJSON = jsonpickle.encode(result, unpicklable=False)
     return exJSON
 
